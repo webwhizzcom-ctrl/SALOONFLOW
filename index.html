@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Asmita's Salon - Premium Operating System</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div class="app-container">
+      
+      <!-- Collapsible Sidebar Navigation -->
+      <aside class="sidebar" id="app-sidebar">
+        <div class="brand-section">
+          <img src="/logo.png" alt="Asmita's Salon" class="brand-logo-img" style="width: 36px; height: 36px; border-radius: var(--radius-md); object-fit: cover; border: 1.5px solid var(--primary); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25); flex-shrink: 0;" />
+          <span class="brand-name">Asmita's</span>
+          <button class="sidebar-toggle-btn" id="btn-toggle-sidebar" title="Collapse Sidebar">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+          </button>
+        </div>
+        
+        <ul class="nav-links">
+          <li class="nav-item" data-view="dashboard">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+            </svg>
+            <span class="nav-text">Dashboard</span>
+          </li>
+          <li class="nav-item active" data-view="invoice-creator">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+            </svg>
+            <span class="nav-text">Billing</span>
+          </li>
+          <li class="nav-item" data-view="customers">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+            </svg>
+            <span class="nav-text">Customers</span>
+          </li>
+          <li class="nav-item" data-view="appointments">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z" />
+            </svg>
+            <span class="nav-text">Schedule</span>
+          </li>
+          <li class="nav-item" data-view="invoice-history">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.375M9 18h3.375m-5.303-6h.008v.008H7.125V12zm0 3h.008v.008H7.125V15zm0 3h.008v.008H7.125V18M20.25 5.771c0-1.041-.806-1.917-1.85-1.994-1.401-.103-2.822-.154-4.25-.154-1.43 0-2.85.051-4.25.154-1.044.077-1.85.953-1.85 1.994v14.166c0 1.042.806 1.917 1.85 1.994 1.4.103 2.82.154 4.25.154 1.427 0 2.847-.051 4.25-.154 1.044-.077 1.85-.953 1.85-1.994V5.771z" />
+            </svg>
+            <span class="nav-text">Invoice History</span>
+          </li>
+          <li class="nav-item" data-view="staff">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+            </svg>
+            <span class="nav-text">Staff & Shifts</span>
+          </li>
+          <li class="nav-item" data-view="admin-settings">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.43l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span class="nav-text">Settings</span>
+          </li>
+        </ul>
+        
+        <div class="sidebar-footer">
+          <div style="font-size:0.7rem; color:var(--text-muted); text-align:center;">
+            SalonFlow Enterprise v1.0
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Application Wrapper -->
+      <main class="main-wrapper">
+        
+        <!-- Top Bar Header -->
+        <header class="top-bar">
+          
+          <!-- Left: Global search -->
+          <div class="topbar-search">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            <input type="text" id="global-pos-search" placeholder="Quick search transactions, guests, services..." />
+          </div>
+
+          <!-- Right: Statuses, Toggles, and Dropdowns -->
+          <div class="topbar-right">
+            
+            <!-- Connection Indicator -->
+            <div class="connectivity-status online" id="topbar-connection-badge">
+              <span class="pulse-dot"></span>
+              <span class="status-lbl">Synced</span>
+            </div>
+
+            <!-- Lock / Logout Button -->
+            <button class="topbar-icon-btn" id="btn-topbar-logout" title="Lock Screen / Logout">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" style="width: 18px; height: 18px;">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+              </svg>
+            </button>
+
+            <!-- Active Staff static indicator (No dropdown / switch) -->
+            <div class="staff-picker-container">
+              <div class="staff-picker-trigger-static">
+                <span class="staff-avatar" id="active-staff-avatar">M</span>
+                <div class="staff-info">
+                  <span class="staff-name" id="active-staff-name">Marcus Thorne</span>
+                  <span class="staff-role" id="active-staff-role">Manager</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Notifications Bell -->
+            <div class="topbar-icon-btn-container">
+              <button class="topbar-icon-btn" id="btn-topbar-notifications" title="Notifications">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+                </svg>
+                <span class="bell-badge" id="bell-badge" style="display:none;"></span>
+              </button>
+              <div class="notifications-dropdown" id="topbar-notifications-dropdown">
+                <div class="notif-header">Notifications</div>
+                <div class="notif-list" id="topbar-notif-list">
+                  <div class="notif-empty">All caught up!</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Theme Toggler -->
+            <button class="topbar-icon-btn" id="btn-topbar-theme" title="Switch Theme">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" id="theme-icon-dark">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+              </svg>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" id="theme-icon-light" style="display:none;">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m0 13.5V21m8.961-8.961h-2.25M4.125 12h-2.25m14.593-9.139l-1.59 1.59M5.274 18.726l-1.59 1.59m16.31-16.3l-1.59-1.59M5.272 5.281L3.682 3.69m4.939 8.31a3 3 0 116 0 3 3 0 01-6 0z" />
+              </svg>
+            </button>
+
+            <!-- User profile dropdown / Offline switch -->
+            <div class="profile-avatar" id="profile-avatar-trigger" style="background-image: url('https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256&auto=format&fit=crop');">
+              <!-- Avatar image -->
+            </div>
+
+          </div>
+        </header>
+
+        <!-- View panels grid -->
+        <section class="content-area">
+          
+          <!-- View 1: Analytics Dashboard -->
+          <div class="view-panel" id="view-dashboard">
+            <div id="dashboard-view-container" style="height: 100%;"></div>
+          </div>
+
+
+
+          <!-- View 2: POS Workspace View (2-Column layout) -->
+          <div class="view-panel active" id="view-invoice-creator">
+            <div class="pos-workspace-layout">
+              <!-- Center 70%: Catalog & Invoice items -->
+              <div class="pos-center-col" id="invoice-creator-container"></div>
+              <!-- Right 30%: financial Calculations sticky drawer -->
+              <div class="pos-right-col" id="payment-checkout-container"></div>
+            </div>
+          </div>
+
+          <!-- View 3: CRM Customers Roster full view -->
+          <div class="view-panel" id="view-customers">
+            <div id="full-customers-container" class="card" style="height: 100%; display: flex; flex-direction: column;">
+              <!-- Loaded dynamically -->
+            </div>
+          </div>
+
+          <!-- View 4: Timeline Appointments calendar -->
+          <div class="view-panel" id="view-appointments">
+            <div id="appointments-view-container" style="height: 100%;"></div>
+          </div>
+
+          <!-- View 5: Ledger Invoices Audit logs -->
+          <div class="view-panel" id="view-invoice-history">
+            <div id="invoice-history-container" style="height: 100%;"></div>
+          </div>
+
+          <!-- View 6: Stylists profiles rosters -->
+          <div class="view-panel" id="view-staff">
+            <div id="staff-view-container" style="height: 100%;"></div>
+          </div>
+
+          <!-- View 7: Categorized Store parameter settings -->
+          <div class="view-panel" id="view-admin-settings">
+            <div id="admin-settings-container" style="height: 100%;"></div>
+          </div>
+
+        </section>
+      </main>
+
+      <!-- Slide-over Right Drawer for Appointment Details -->
+      <div class="drawer-overlay" id="drawer-appointment-overlay">
+        <div class="drawer-panel" id="drawer-appointment-panel">
+          <div class="drawer-header">
+            <h3 class="drawer-title">Appointment Details</h3>
+            <button class="drawer-close-btn" id="btn-close-appointment-drawer">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div class="drawer-body" id="appointment-drawer-body">
+            <!-- Rendered by AppointmentsView -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Slide-over Right Drawer for Receipts and Success Screen -->
+      <div class="drawer-overlay" id="drawer-receipt-overlay">
+        <div class="drawer-panel" id="drawer-receipt-panel">
+          <div class="drawer-header">
+            <h3 class="drawer-title">Receipt Ticket</h3>
+            <button class="drawer-close-btn" id="btn-close-receipt-drawer">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div class="drawer-body" id="receipt-drawer-body">
+            <!-- Rendered by PaymentCheckout -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Slide-over Right Drawer for Audit logs & History reviews -->
+      <div class="drawer-overlay" id="drawer-audit-overlay">
+        <div class="drawer-panel" id="drawer-audit-panel">
+          <div class="drawer-header">
+            <h3 class="drawer-title">Override Audit details</h3>
+            <button class="drawer-close-btn" id="btn-close-audit-drawer">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div class="drawer-body" id="audit-drawer-body">
+            <!-- Rendered by InvoiceHistory -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Slide-over Right Drawer for Customer Selection -->
+      <div class="drawer-overlay" id="drawer-customer-overlay">
+        <div class="drawer-panel" id="customer-dashboard-container" style="max-width: 440px;">
+          <!-- Loaded dynamically by CustomerDashboard.js -->
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Supervisor Authentication PIN Pad Overlay Modal -->
+    <div class="modal-overlay" id="auth-supervisor-modal">
+      <div class="modal-box" style="max-width: 320px; text-align: center;">
+        <div class="modal-header" style="margin-bottom:12px;">
+          <h3 class="modal-title">PIN Authorization</h3>
+          <button class="modal-close-btn" id="btn-close-global-auth-modal">&times;</button>
+        </div>
+        
+        <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:16px;">
+          Enter supervisor authorization code.
+        </p>
+
+        <div class="supervisor-pin-input-container" style="position: relative; width: 240px; margin: 0 auto 15px auto; display: flex; align-items: center;">
+          <input type="password" id="supervisor-pin-input" placeholder="Enter PIN or Password" style="width: 100%; padding: 10px 42px 10px 14px; font-size: 1.1rem; border-radius: var(--radius-md); border: 1.5px solid rgba(255,255,255,0.08); background: var(--bg-input, rgba(255,255,255,0.02)); color: #fff; text-align: center; font-family: inherit; transition: var(--transition-smooth);" />
+          <button id="supervisor-toggle-eye" type="button" title="Toggle Password Visibility" style="position: absolute; right: 10px; background: none; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px; border-radius: 4px; transition: var(--transition-smooth);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="eye-icon"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+        </div>
+
+        <button id="btn-submit-supervisor-auth" class="btn btn-primary" style="width: 240px; min-height: 40px; font-weight: 700; margin: 0 auto 15px auto;">Authorize</button>
+
+        <div class="numpad-grid">
+          <button class="numpad-btn" data-val="1">1</button>
+          <button class="numpad-btn" data-val="2">2</button>
+          <button class="numpad-btn" data-val="3">3</button>
+          <button class="numpad-btn" data-val="4">4</button>
+          <button class="numpad-btn" data-val="5">5</button>
+          <button class="numpad-btn" data-val="6">6</button>
+          <button class="numpad-btn" data-val="7">7</button>
+          <button class="numpad-btn" data-val="8">8</button>
+          <button class="numpad-btn" data-val="9">9</button>
+          <button class="numpad-btn" data-val="back" style="font-size:1.1rem; color:var(--text-muted);">Del</button>
+          <button class="numpad-btn" data-val="0">0</button>
+          <div style="width:54px; height:54px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notification system toast messages anchor -->
+    <div class="notifications-container" id="global-notifications"></div>
+
+    <!-- Full-screen login overlay container -->
+    <div id="login-screen-overlay" class="login-screen-overlay active"></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
