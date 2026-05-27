@@ -8,6 +8,7 @@ export class InvoiceCreator {
     this.state = state;
     this.activeCategory = "pmu"; // 'pmu', 'hair', 'skin', 'academy', 'products', 'memberships', 'giftcards'
     this.catalogSearch = "";
+    this.catalogSearchLocal = "";
     
     // Track which cart item has its commission split panel expanded
     this.expandedSplitCartId = null;
@@ -18,8 +19,22 @@ export class InvoiceCreator {
     // Control service addition modal
     this.showAddServiceModal = false;
 
+    // Debounced search logic to prevent lagging renders on rapid typing
+    this.debouncedCatalogSearch = this.debounce((query) => {
+      this.catalogSearch = query;
+      this.render();
+    }, 150);
+
     // Subscribe to state updates
     this.state.subscribe(() => this.render());
+  }
+
+  debounce(func, timeout = 150) {
+    let timer;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { func.apply(this, args); }, timeout);
+    };
   }
 
   init() {
@@ -28,12 +43,14 @@ export class InvoiceCreator {
 
   switchCategory(cat) {
     this.activeCategory = cat;
+    this.catalogSearch = "";
+    this.catalogSearchLocal = "";
     this.render();
   }
 
   handleCatalogSearch(e) {
-    this.catalogSearch = e.target.value;
-    this.render();
+    this.catalogSearchLocal = e.target.value;
+    this.debouncedCatalogSearch(e.target.value);
   }
 
   addItemToCart(item) {
@@ -113,6 +130,28 @@ export class InvoiceCreator {
   }
 
   render() {
+    const activeElementId = document.activeElement ? document.activeElement.id : null;
+    const selectionStart = document.activeElement && 'selectionStart' in document.activeElement ? document.activeElement.selectionStart : null;
+    const selectionEnd = document.activeElement && 'selectionEnd' in document.activeElement ? document.activeElement.selectionEnd : null;
+
+    this.renderHtml();
+
+    if (activeElementId) {
+      const elementToFocus = this.container.querySelector(`#${activeElementId}`);
+      if (elementToFocus) {
+        elementToFocus.focus();
+        if (selectionStart !== null && selectionEnd !== null && 'setSelectionRange' in elementToFocus) {
+          try {
+            elementToFocus.setSelectionRange(selectionStart, selectionEnd);
+          } catch (e) {
+            // Some input types like number or date do not support selection range
+          }
+        }
+      }
+    }
+  }
+
+  renderHtml() {
     const cart = this.state.cart;
     const stylists = db.get("stylists");
     const isAllowedDiscount = this.state.activeStaff && (this.state.activeStaff.role === 'admin' || this.state.activeStaff.role === 'receptionist');
@@ -249,7 +288,7 @@ export class InvoiceCreator {
             
             <div style="display:flex; gap:10px; align-items:center;">
               <!-- Mini search -->
-              <input type="text" id="catalog-search-input" class="form-input" placeholder="Filter items..." value="${this.catalogSearch}" style="min-height:30px; height:30px; width:130px; font-size:0.78rem; padding:4px 8px; border-radius:var(--radius-sm);" />
+              <input type="text" id="catalog-search-input" class="form-input" placeholder="Filter items..." value="${this.catalogSearchLocal}" style="min-height:30px; height:30px; width:130px; font-size:0.78rem; padding:4px 8px; border-radius:var(--radius-sm);" />
               ${isAllowedAddService ? `
                 <button class="btn btn-primary btn-sm" id="btn-add-custom-service" style="min-height:30px; height:30px; font-size:0.78rem; padding:4px 10px; border-radius:var(--radius-sm); white-space:nowrap; background:var(--primary); border:none;">
                   + Add Service
@@ -476,10 +515,6 @@ export class InvoiceCreator {
     const catalogSearchInput = this.container.querySelector("#catalog-search-input");
     if (catalogSearchInput) {
       catalogSearchInput.addEventListener("input", (e) => this.handleCatalogSearch(e));
-      // Only focus search input if modal is not currently open
-      if (!this.showAddServiceModal) {
-        catalogSearchInput.focus(); // maintain cursor focus
-      }
     }
 
     // Service selection add custom service triggers

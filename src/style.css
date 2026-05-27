@@ -2446,6 +2446,149 @@ body.light-theme .checkout-totals-card {
   }
 }
 
+/* ==========================================================================
+   SEARCH & FILTER UX REDESIGN STYLING
+   ========================================================================== */
+
+/* Collapsible Filter Panel (for inline desktop/tablet display) */
+.filters-collapsible {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, margin-bottom 0.3s ease;
+  margin-bottom: 0;
+}
+
+.filters-collapsible.show {
+  max-height: 200px;
+  opacity: 1;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 16px;
+}
+
+/* Sticky, Compact Search & Filter Bar */
+.sticky-search-container {
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-app);
+  z-index: 90;
+  padding: 8px 0;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px dashed var(--border-color);
+  transition: var(--transition-smooth);
+}
+
+body.light-theme .sticky-search-container {
+  background-color: var(--bg-app);
+}
+
+.compact-search-wrapper {
+  position: relative;
+  flex-grow: 1;
+  max-width: 480px;
+}
+
+.compact-search-wrapper svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.compact-search-wrapper input {
+  width: 100%;
+  padding-left: 36px;
+  min-height: 40px;
+  height: 40px;
+  font-size: 0.85rem;
+  border-radius: var(--radius-md);
+}
+
+/* Toggle Filter Button styling */
+.btn-filter-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  height: 40px;
+  padding: 0 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  background-color: var(--bg-input);
+  border: 1.5px solid var(--border-color);
+}
+
+.btn-filter-toggle:hover {
+  background-color: var(--bg-card-hover);
+  border-color: var(--border-color-hover);
+}
+
+.btn-filter-toggle.active {
+  background-color: var(--primary-glow);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* Vertical Stacking inside Mobile Drawer */
+.filter-drawer-content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.filter-drawer-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filter-drawer-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+/* Close suggestions dropdown design update */
+.suggestions-dropdown {
+  background-color: var(--bg-card);
+  border: 1.5px solid var(--border-color-hover);
+  border-radius: var(--radius-md);
+  max-height: 250px;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+}
+
+.suggestion-item:hover {
+  background-color: var(--bg-card-hover);
+}
+
+/* Mobile/Tablet Drawer Styles */
+@media (max-width: 1024px) {
+  /* Increase all touch targets in filter inputs for receptionist fingers */
+  .filter-drawer-content .form-select,
+  .filter-drawer-content .form-input,
+  .filter-drawer-content .btn {
+    min-height: 46px !important;
+    font-size: 0.95rem !important;
+    border-radius: var(--radius-md) !important;
+  }
+}
+
+
 
 
 

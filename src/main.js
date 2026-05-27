@@ -110,6 +110,8 @@ state.subscribe((currentState) => {
       "drawer-appointment-overlay",
       "drawer-receipt-overlay",
       "drawer-audit-overlay",
+      "drawer-customer-overlay",
+      "drawer-filter-overlay",
       "auth-supervisor-modal"
     ];
     overlays.forEach(id => {
@@ -336,6 +338,14 @@ if (closeApptBtn) {
     // Clear selection in view
     appointmentsView.selectedAppointment = null;
     appointmentsView.render();
+  });
+}
+
+const closeFilterBtn = document.getElementById("btn-close-filter-drawer");
+if (closeFilterBtn) {
+  closeFilterBtn.addEventListener("click", () => {
+    const overlay = document.getElementById("drawer-filter-overlay");
+    if (overlay) overlay.classList.remove("active");
   });
 }
 

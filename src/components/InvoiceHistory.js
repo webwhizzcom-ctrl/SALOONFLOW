@@ -9,10 +9,12 @@ export class InvoiceHistory {
 
     // Filters & Search
     this.searchQuery = "";
+    this.searchQueryLocal = "";
     this.filterDateStart = "";
     this.filterDateEnd = "";
     this.filterPayment = "all";
     this.filterStylist = "all";
+    this.showFilters = false;
 
     // Selected detail view
     this.selectedInvoice = null;
@@ -25,11 +27,27 @@ export class InvoiceHistory {
     this.editItemSplitRatio = 100;
     this.editItemSplitStylist = "";
 
+    // Debounced search to prevent lagging renders on rapid typing
+    this.debouncedSearch = this.debounce((query) => {
+      this.searchQuery = query;
+      this.render();
+    }, 150);
+
     // Subscribe to state updates
     this.state.subscribe(() => {
-      this.render();
-      this.renderAuditDrawer();
+      if (this.state.currentView === "invoice-history") {
+        this.render();
+        this.renderAuditDrawer();
+      }
     });
+  }
+
+  debounce(func, timeout = 150) {
+    let timer;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { func.apply(this, args); }, timeout);
+    };
   }
 
   init() {
@@ -199,6 +217,26 @@ export class InvoiceHistory {
   }
 
   render() {
+    const activeElementId = document.activeElement ? document.activeElement.id : null;
+    const selectionStart = document.activeElement && 'selectionStart' in document.activeElement ? document.activeElement.selectionStart : null;
+    const selectionEnd = document.activeElement && 'selectionEnd' in document.activeElement ? document.activeElement.selectionEnd : null;
+
+    this.renderHtml();
+
+    if (activeElementId) {
+      const elementToFocus = this.container.querySelector(`#${activeElementId}`);
+      if (elementToFocus) {
+        elementToFocus.focus();
+        if (selectionStart !== null && selectionEnd !== null && 'setSelectionRange' in elementToFocus) {
+          try {
+            elementToFocus.setSelectionRange(selectionStart, selectionEnd);
+          } catch (e) {}
+        }
+      }
+    }
+  }
+
+  renderHtml() {
     if (this.state.currentView !== "invoice-history") return;
 
     const invoices = db.get("invoices");
@@ -239,32 +277,52 @@ export class InvoiceHistory {
         <h2 class="card-title">Billing Ledger</h2>
       </div>
 
-      <!-- Filters Row -->
-      <div class="crm-search-bar-row" style="display:grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap:10px; width:100%; margin-bottom:16px;">
-        <div class="topbar-search" style="width:100%; background-color:var(--bg-input);">
+      <!-- Sticky Search & Filter Toggle Bar -->
+      <div class="sticky-search-container">
+        <div class="compact-search-wrapper">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
           </svg>
-          <input type="text" id="hist-search-field" placeholder="Search by invoice number or client name..." value="${this.searchQuery}" />
+          <input type="text" id="hist-search-field" placeholder="Search invoices or guests..." value="${this.searchQueryLocal !== undefined ? this.searchQueryLocal : this.searchQuery}" autocomplete="off" />
         </div>
+        <button class="btn-filter-toggle ${this.showFilters ? 'active' : ''}" id="btn-toggle-ledger-filters">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px; height:16px;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+          </svg>
+          <span>Filter & Search</span>
+        </button>
+      </div>
 
-        <select id="hist-filter-payment" class="form-select">
-          <option value="all" ${this.filterPayment === 'all' ? 'selected':''}>All Payments</option>
-          <option value="POS Terminal" ${this.filterPayment === 'POS Terminal' ? 'selected':''}>POS Card</option>
-          <option value="Cash / Manual Check" ${this.filterPayment === 'Cash / Manual Check' ? 'selected':''}>Cash / Check</option>
-          <option value="Online Stored Card" ${this.filterPayment === 'Online Stored Card' ? 'selected':''}>Stored Card</option>
-          <option value="Points Redemption" ${this.filterPayment === 'Points Redemption' ? 'selected':''}>Points</option>
-          <option value="Gift Card Balance" ${this.filterPayment === 'Gift Card Balance' ? 'selected':''}>Gift Card</option>
-        </select>
+      <!-- Collapsible Desktop/Tablet Inline Filter Row -->
+      <div class="filters-collapsible ${this.showFilters ? 'show' : ''}">
+        <div style="display:grid; grid-template-columns: 1.2fr 1.2fr 1fr; gap:12px; width:100%;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" style="font-size:0.72rem;">Payment Method</label>
+            <select id="hist-filter-payment" class="form-select">
+              <option value="all" ${this.filterPayment === 'all' ? 'selected':''}>All Payments</option>
+              <option value="POS Terminal" ${this.filterPayment === 'POS Terminal' ? 'selected':''}>POS Card</option>
+              <option value="Cash / Manual Check" ${this.filterPayment === 'Cash / Manual Check' ? 'selected':''}>Cash / Check</option>
+              <option value="Online Stored Card" ${this.filterPayment === 'Online Stored Card' ? 'selected':''}>Stored Card</option>
+              <option value="Points Redemption" ${this.filterPayment === 'Points Redemption' ? 'selected':''}>Points</option>
+              <option value="Gift Card Balance" ${this.filterPayment === 'Gift Card Balance' ? 'selected':''}>Gift Card</option>
+            </select>
+          </div>
 
-        <select id="hist-filter-stylist" class="form-select">
-          <option value="all" ${this.filterStylist === 'all' ? 'selected':''}>All Stylists</option>
-          ${stylists.map(s => `<option value="${s.id}" ${this.filterStylist === s.id ? 'selected':''}>${s.name}</option>`).join('')}
-        </select>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" style="font-size:0.72rem;">Stylist</label>
+            <select id="hist-filter-stylist" class="form-select">
+              <option value="all" ${this.filterStylist === 'all' ? 'selected':''}>All Stylists</option>
+              ${stylists.map(s => `<option value="${s.id}" ${this.filterStylist === s.id ? 'selected':''}>${s.name}</option>`).join('')}
+            </select>
+          </div>
 
-        <div style="display:flex; gap:6px;">
-          <input type="date" id="hist-filter-start" class="form-input" value="${this.filterDateStart}" style="padding:8px 4px; font-size:0.75rem; min-height:36px; height:36px;" />
-          <input type="date" id="hist-filter-end" class="form-input" value="${this.filterDateEnd}" style="padding:8px 4px; font-size:0.75rem; min-height:36px; height:36px;" />
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" style="font-size:0.72rem;">Date Range</label>
+            <div style="display:flex; gap:6px;">
+              <input type="date" id="hist-filter-start" class="form-input" value="${this.filterDateStart}" style="padding:8px; font-size:0.78rem;" />
+              <input type="date" id="hist-filter-end" class="form-input" value="${this.filterDateEnd}" style="padding:8px; font-size:0.78rem;" />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -459,28 +517,50 @@ export class InvoiceHistory {
     // Search input
     const searchInput = this.container.querySelector("#hist-search-field");
     if (searchInput) {
-      searchInput.addEventListener("input", (e) => this.setFilter("searchQuery", e.target.value));
+      searchInput.addEventListener("input", (e) => {
+        this.searchQueryLocal = e.target.value;
+        this.debouncedSearch(e.target.value);
+      });
     }
 
-    // Payment Filter
+    // Toggle Filters Row / Drawer
+    const toggleBtn = this.container.querySelector("#btn-toggle-ledger-filters");
+    if (toggleBtn) {
+      toggleBtn.addEventListener("click", () => {
+        if (window.innerWidth <= 1024) {
+          // Open shared filter drawer
+          const overlay = document.getElementById("drawer-filter-overlay");
+          if (overlay) {
+            overlay.classList.add("active");
+            this.renderFilterDrawer();
+          }
+        } else {
+          // Toggle inline layout
+          this.showFilters = !this.showFilters;
+          this.render();
+        }
+      });
+    }
+
+    // Payment Filter (desktop collapsible menu only)
     const payFilter = this.container.querySelector("#hist-filter-payment");
     if (payFilter) {
       payFilter.addEventListener("change", (e) => this.setFilter("filterPayment", e.target.value));
     }
 
-    // Stylist Filter
+    // Stylist Filter (desktop collapsible menu only)
     const styFilter = this.container.querySelector("#hist-filter-stylist");
     if (styFilter) {
       styFilter.addEventListener("change", (e) => this.setFilter("filterStylist", e.target.value));
     }
 
-    // Start Date Filter
+    // Start Date Filter (desktop collapsible menu only)
     const startFilter = this.container.querySelector("#hist-filter-start");
     if (startFilter) {
       startFilter.addEventListener("change", (e) => this.setFilter("filterDateStart", e.target.value));
     }
 
-    // End Date Filter
+    // End Date Filter (desktop collapsible menu only)
     const endFilter = this.container.querySelector("#hist-filter-end");
     if (endFilter) {
       endFilter.addEventListener("change", (e) => this.setFilter("filterDateEnd", e.target.value));
@@ -502,6 +582,100 @@ export class InvoiceHistory {
         this.renderAuditDrawer();
       });
     });
+  }
+
+  renderFilterDrawer() {
+    const drawerBody = document.getElementById("filter-drawer-body");
+    if (!drawerBody) return;
+
+    const stylists = db.get("stylists");
+
+    drawerBody.innerHTML = `
+      <div class="filter-drawer-content">
+        <div class="filter-drawer-group">
+          <span class="filter-drawer-label">Payment Method</span>
+          <select id="hist-drawer-filter-payment" class="form-select">
+            <option value="all" ${this.filterPayment === 'all' ? 'selected':''}>All Payments</option>
+            <option value="POS Terminal" ${this.filterPayment === 'POS Terminal' ? 'selected':''}>POS Card</option>
+            <option value="Cash / Manual Check" ${this.filterPayment === 'Cash / Manual Check' ? 'selected':''}>Cash / Check</option>
+            <option value="Online Stored Card" ${this.filterPayment === 'Online Stored Card' ? 'selected':''}>Stored Card</option>
+            <option value="Points Redemption" ${this.filterPayment === 'Points Redemption' ? 'selected':''}>Points</option>
+            <option value="Gift Card Balance" ${this.filterPayment === 'Gift Card Balance' ? 'selected':''}>Gift Card</option>
+          </select>
+        </div>
+
+        <div class="filter-drawer-group">
+          <span class="filter-drawer-label">Stylist</span>
+          <select id="hist-drawer-filter-stylist" class="form-select">
+            <option value="all" ${this.filterStylist === 'all' ? 'selected':''}>All Stylists</option>
+            ${stylists.map(s => `<option value="${s.id}" ${this.filterStylist === s.id ? 'selected':''}>${s.name}</option>`).join('')}
+          </select>
+        </div>
+
+        <div class="filter-drawer-group">
+          <span class="filter-drawer-label">Start Date</span>
+          <input type="date" id="hist-drawer-filter-start" class="form-input" value="${this.filterDateStart}" />
+        </div>
+
+        <div class="filter-drawer-group">
+          <span class="filter-drawer-label">End Date</span>
+          <input type="date" id="hist-drawer-filter-end" class="form-input" value="${this.filterDateEnd}" />
+        </div>
+
+        <button class="btn btn-primary" id="btn-apply-drawer-filters" style="margin-top: 10px; min-height: 44px; width: 100%;">
+          Apply Filters
+        </button>
+      </div>
+    `;
+
+    this.bindDrawerEvents();
+  }
+
+  closeFilterDrawer() {
+    const overlay = document.getElementById("drawer-filter-overlay");
+    if (overlay) overlay.classList.remove("active");
+  }
+
+  bindDrawerEvents() {
+    const drawerBody = document.getElementById("filter-drawer-body");
+    if (!drawerBody) return;
+
+    const payFilter = drawerBody.querySelector("#hist-drawer-filter-payment");
+    if (payFilter) {
+      payFilter.addEventListener("change", (e) => {
+        this.setFilter("filterPayment", e.target.value);
+        this.closeFilterDrawer();
+      });
+    }
+
+    const styFilter = drawerBody.querySelector("#hist-drawer-filter-stylist");
+    if (styFilter) {
+      styFilter.addEventListener("change", (e) => {
+        this.setFilter("filterStylist", e.target.value);
+        this.closeFilterDrawer();
+      });
+    }
+
+    const startFilter = drawerBody.querySelector("#hist-drawer-filter-start");
+    if (startFilter) {
+      startFilter.addEventListener("change", (e) => {
+        this.setFilter("filterDateStart", e.target.value);
+      });
+    }
+
+    const endFilter = drawerBody.querySelector("#hist-drawer-filter-end");
+    if (endFilter) {
+      endFilter.addEventListener("change", (e) => {
+        this.setFilter("filterDateEnd", e.target.value);
+      });
+    }
+
+    const applyBtn = drawerBody.querySelector("#btn-apply-drawer-filters");
+    if (applyBtn) {
+      applyBtn.addEventListener("click", () => {
+        this.closeFilterDrawer();
+      });
+    }
   }
 
   bindReceiptEvents() {

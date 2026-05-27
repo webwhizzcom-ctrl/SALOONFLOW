@@ -7,16 +7,38 @@ export class CustomerDashboard {
     this.container = container;
     this.state = state;
     this.searchQuery = "";
+    this.searchQueryLocal = "";
     this.showSuggestions = false;
     this.isEditing = false;
     this.showHistoryModal = false;
 
     // Full CRM View States
     this.crmSearchQuery = "";
+    this.crmSearchQueryLocal = "";
     this.showAddCustomerModal = false;
+
+    // Debounced searches to prevent rendering lag
+    this.debouncedSearchCRM = this.debounce((query) => {
+      this.crmSearchQuery = query;
+      this.render();
+    }, 150);
+
+    this.debouncedSearchPOS = this.debounce((query) => {
+      this.searchQuery = query;
+      this.showSuggestions = query.trim().length > 0;
+      this.render();
+    }, 150);
 
     // Subscribe to state updates
     this.state.subscribe(() => this.render());
+  }
+
+  debounce(func, timeout = 150) {
+    let timer;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { func.apply(this, args); }, timeout);
+    };
   }
 
   init() {
@@ -26,17 +48,19 @@ export class CustomerDashboard {
   handleSearch(e, crm = false) {
     const val = e.target.value;
     if (crm) {
-      this.crmSearchQuery = val;
+      this.crmSearchQueryLocal = val;
+      this.debouncedSearchCRM(val);
     } else {
-      this.searchQuery = val;
+      this.searchQueryLocal = val;
       this.showSuggestions = val.trim().length > 0;
+      this.debouncedSearchPOS(val);
     }
-    this.render();
   }
 
   selectCustomer(customer) {
     this.state.selectCustomer(customer);
     this.searchQuery = "";
+    this.searchQueryLocal = "";
     this.showSuggestions = false;
     this.isEditing = false;
     this.render();
@@ -224,6 +248,26 @@ export class CustomerDashboard {
   closeHistory() { this.showHistoryModal = false; this.render(); }
 
   render() {
+    const activeElementId = document.activeElement ? document.activeElement.id : null;
+    const selectionStart = document.activeElement && 'selectionStart' in document.activeElement ? document.activeElement.selectionStart : null;
+    const selectionEnd = document.activeElement && 'selectionEnd' in document.activeElement ? document.activeElement.selectionEnd : null;
+
+    this.renderHtml();
+
+    if (activeElementId) {
+      const elementToFocus = this.container.querySelector(`#${activeElementId}`);
+      if (elementToFocus) {
+        elementToFocus.focus();
+        if (selectionStart !== null && selectionEnd !== null && 'setSelectionRange' in elementToFocus) {
+          try {
+            elementToFocus.setSelectionRange(selectionStart, selectionEnd);
+          } catch (e) {}
+        }
+      }
+    }
+  }
+
+  renderHtml() {
     const view = this.state.currentView;
     const customer = this.state.activeCustomer;
     const customers = db.get("customers");
@@ -257,7 +301,7 @@ export class CustomerDashboard {
             <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); width:16px; height:16px; color:var(--text-muted);">
               <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
             </svg>
-            <input type="text" class="form-input" id="customer-search-input" placeholder="Search guests by name or phone..." value="${this.searchQuery}" style="padding-left:36px; min-height:40px; height:40px; font-size:0.85rem;" autocomplete="off" />
+            <input type="text" class="form-input" id="customer-search-input" placeholder="Search guests by name or phone..." value="${this.searchQueryLocal}" style="padding-left:36px; min-height:40px; height:40px; font-size:0.85rem;" autocomplete="off" />
             
             ${this.showSuggestions ? `
               <div class="suggestions-dropdown" style="position:absolute; width:100%; top:calc(100% + 4px); z-index:1000; box-shadow:var(--shadow-md);">
@@ -393,7 +437,7 @@ export class CustomerDashboard {
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
             </svg>
-            <input type="text" id="crm-search-field" placeholder="Search profiles by name or contact details..." value="${this.crmSearchQuery}" />
+            <input type="text" id="crm-search-field" placeholder="Search profiles by name or contact details..." value="${this.crmSearchQueryLocal}" />
           </div>
         </div>
 
@@ -445,12 +489,6 @@ export class CustomerDashboard {
   bindPOSEvents() {
     const searchInput = this.container.querySelector("#customer-search-input");
     if (searchInput) {
-      const overlay = document.getElementById("drawer-customer-overlay");
-      if (overlay && overlay.classList.contains("active")) {
-        searchInput.focus();
-        const valLength = searchInput.value.length;
-        searchInput.setSelectionRange(valLength, valLength);
-      }
       searchInput.addEventListener("input", (e) => this.handleSearch(e));
       searchInput.addEventListener("focus", () => {
         if (this.searchQuery.trim().length > 0) {
@@ -564,9 +602,6 @@ export class CustomerDashboard {
   bindCRMEvents() {
     const searchInput = this.container.querySelector("#crm-search-field");
     if (searchInput) {
-      searchInput.focus();
-      const valLength = searchInput.value.length;
-      searchInput.setSelectionRange(valLength, valLength);
       searchInput.addEventListener("input", (e) => this.handleSearch(e, true));
     }
 

@@ -44,6 +44,19 @@ export class AppointmentsView {
     // View layout mode: 'timeline' or 'grid' — grid only for admin
     this.calendarMode = "timeline";
 
+    // Search & Filters State
+    this.searchQuery = "";
+    this.searchQueryLocal = "";
+    this.activeFilter = "All"; // 'All', 'Confirmed', 'Arrived', 'In Service', 'Completed', 'Canceled'
+    this.activeStylistFilter = "all";
+    this.showFilters = false;
+
+    // Debounced search to prevent lagging renders on rapid typing
+    this.debouncedSearch = this.debounce((query) => {
+      this.searchQuery = query;
+      this.render();
+    }, 150);
+
     // Subscribe to state updates
     this.state.subscribe(() => {
       if (this.state.currentView === "appointments") {
@@ -51,6 +64,14 @@ export class AppointmentsView {
         this.renderDetailsDrawer();
       }
     });
+  }
+
+  debounce(func, timeout = 150) {
+    let timer;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { func.apply(this, args); }, timeout);
+    };
   }
 
   init() {
@@ -319,6 +340,26 @@ export class AppointmentsView {
   }
 
   render() {
+    const activeElementId = document.activeElement ? document.activeElement.id : null;
+    const selectionStart = document.activeElement && 'selectionStart' in document.activeElement ? document.activeElement.selectionStart : null;
+    const selectionEnd = document.activeElement && 'selectionEnd' in document.activeElement ? document.activeElement.selectionEnd : null;
+
+    this.renderHtml();
+
+    if (activeElementId) {
+      const elementToFocus = this.container.querySelector(`#${activeElementId}`);
+      if (elementToFocus) {
+        elementToFocus.focus();
+        if (selectionStart !== null && selectionEnd !== null && 'setSelectionRange' in elementToFocus) {
+          try {
+            elementToFocus.setSelectionRange(selectionStart, selectionEnd);
+          } catch (e) {}
+        }
+      }
+    }
+  }
+
+  renderHtml() {
     if (this.state.currentView !== "appointments") return;
 
     const appts = db.get("appointments") || [];
@@ -327,6 +368,30 @@ export class AppointmentsView {
 
     const todayStr = getTodayStr();
     let todayAppts = appts.filter(a => a.startTime.startsWith(todayStr));
+
+    // Apply status filter
+    if (this.activeFilter !== "All") {
+      todayAppts = todayAppts.filter(a => {
+        if (this.activeFilter === "Confirmed") {
+          return a.status === "Scheduled" || a.status === "Confirmed";
+        }
+        return a.status.toLowerCase() === this.activeFilter.toLowerCase();
+      });
+    }
+
+    // Apply stylist filter
+    if (this.activeStylistFilter !== "all") {
+      todayAppts = todayAppts.filter(a => a.stylistID === this.activeStylistFilter);
+    }
+
+    // Apply search filter (customer name or service name)
+    if (this.searchQuery.trim().length > 0) {
+      const q = this.searchQuery.toLowerCase();
+      todayAppts = todayAppts.filter(a =>
+        (a.customerName && a.customerName.toLowerCase().includes(q)) ||
+        (a.serviceName && a.serviceName.toLowerCase().includes(q))
+      );
+    }
 
     const role = this.state.activeStaff ? this.state.activeStaff.role : "stylist";
     const isStylist = ["stylist", "senior_staff", "junior_staff"].includes(role);
@@ -501,7 +566,7 @@ export class AppointmentsView {
     this.container.innerHTML = `
       <div style="display:flex; flex-direction:column; gap: 12px; height: 100%; overflow-y: auto;">
         
-        <div style="display:flex; align-items:center; gap: 12px; width: 100%;">
+        <div style="display:flex; align-items:center; gap: 12px; width: 100%; flex-wrap: wrap;">
           <div>
             <h2 class="receptionist-date-title" style="font-size: 1.4rem;">Today's Bookings</h2>
             <p style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">Salon-wide Scheduling Timeline</p>
@@ -517,6 +582,47 @@ export class AppointmentsView {
               New Booking
             </button>
           ` : ''}
+        </div>
+
+        <!-- Sticky Search & Filter Toggle Bar -->
+        <div class="sticky-search-container">
+          <div class="compact-search-wrapper">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            <input type="text" id="appt-search-field" placeholder="Search guests or services..." value="${this.searchQueryLocal !== undefined ? this.searchQueryLocal : this.searchQuery}" autocomplete="off" />
+          </div>
+          <button class="btn-filter-toggle ${this.showFilters ? 'active' : ''}" id="btn-toggle-appt-filters">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px; height:16px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+            </svg>
+            <span>Filter & Search</span>
+          </button>
+        </div>
+
+        <!-- Collapsible Desktop/Tablet Inline Filter Row -->
+        <div class="filters-collapsible ${this.showFilters ? 'show' : ''}">
+          <div style="display:grid; grid-template-columns: 1.2fr 1.2fr; gap:12px; width:100%;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size:0.72rem;">Status</label>
+              <select id="appt-filter-status" class="form-select">
+                <option value="All" ${this.activeFilter === 'All' ? 'selected':''}>All Today</option>
+                <option value="Confirmed" ${this.activeFilter === 'Confirmed' ? 'selected':''}>Confirmed/Scheduled</option>
+                <option value="Arrived" ${this.activeFilter === 'Arrived' ? 'selected':''}>Arrived</option>
+                <option value="In Service" ${this.activeFilter === 'In Service' ? 'selected':''}>In Service</option>
+                <option value="Completed" ${this.activeFilter === 'Completed' ? 'selected':''}>Completed</option>
+                <option value="Canceled" ${this.activeFilter === 'Canceled' ? 'selected':''}>Canceled</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size:0.72rem;">Stylist</label>
+              <select id="appt-filter-stylist" class="form-select">
+                <option value="all" ${this.activeStylistFilter === 'all' ? 'selected':''}>All Stylists</option>
+                ${stylists.map(s => `<option value="${s.id}" ${this.activeStylistFilter === s.id ? 'selected':''}>${s.name}</option>`).join('')}
+              </select>
+            </div>
+          </div>
         </div>
 
         <!-- Render active view layout mode container -->
@@ -765,6 +871,9 @@ export class AppointmentsView {
   }
 
   bindEvents() {
+    const role = this.state.activeStaff ? this.state.activeStaff.role : "stylist";
+    const isAdmin = role === "admin";
+
     const addBtn = this.container.querySelector("#btn-add-appt-schedule");
     if (addBtn) {
       addBtn.addEventListener("click", () => {
@@ -796,12 +905,64 @@ export class AppointmentsView {
       editForm.addEventListener("submit", (e) => this.saveEditedBooking(e));
     }
 
+    // Search input listener
+    const searchInput = this.container.querySelector("#appt-search-field");
+    if (searchInput) {
+      searchInput.addEventListener("input", (e) => {
+        this.searchQueryLocal = e.target.value;
+        this.debouncedSearch(e.target.value);
+      });
+    }
+
+    // Toggle Filters Row / Drawer
+    const toggleFiltersBtn = this.container.querySelector("#btn-toggle-appt-filters");
+    if (toggleFiltersBtn) {
+      toggleFiltersBtn.addEventListener("click", () => {
+        if (window.innerWidth <= 1024) {
+          const overlay = document.getElementById("drawer-filter-overlay");
+          if (overlay) {
+            overlay.classList.add("active");
+            this.renderFilterDrawer();
+          }
+        } else {
+          this.showFilters = !this.showFilters;
+          this.render();
+        }
+      });
+    }
+
+    // Status Filter (desktop collapsible menu only)
+    const statusSelect = this.container.querySelector("#appt-filter-status");
+    if (statusSelect) {
+      statusSelect.addEventListener("change", (e) => {
+        this.setFilter("activeFilter", e.target.value);
+      });
+    }
+
+    // Stylist Filter (desktop collapsible menu only)
+    const stylistSelect = this.container.querySelector("#appt-filter-stylist");
+    if (stylistSelect) {
+      stylistSelect.addEventListener("change", (e) => {
+        this.setFilter("activeStylistFilter", e.target.value);
+      });
+    }
+
+    // Switch Calendar Mode Toggle Button click
+    const toggleCalendarBtn = this.container.querySelector("#btn-toggle-calendar-mode");
+    if (toggleCalendarBtn) {
+      toggleCalendarBtn.addEventListener("click", () => {
+        this.calendarMode = this.calendarMode === "grid" ? "timeline" : "grid";
+        this.render();
+      });
+    }
+
     // Appointment Card/Row clicks
-    if (false) {
+    if (this.calendarMode === "grid" && isAdmin) {
       const cards = this.container.querySelectorAll(".appt-absolute-card");
       cards.forEach(card => {
         card.addEventListener("click", (e) => {
           e.stopPropagation();
+          this.closeFilterDrawer(); // Auto-close filter drawer if open
           const id = card.dataset.apptId;
           const appointments = db.get("appointments") || [];
           this.selectedAppointment = appointments.find(a => a.id === id);
@@ -867,6 +1028,7 @@ export class AppointmentsView {
       const rows = this.container.querySelectorAll(".btn-view-details");
       rows.forEach(btn => {
         btn.addEventListener("click", () => {
+          this.closeFilterDrawer(); // Auto-close filter drawer if open
           const id = btn.dataset.id;
           const appointments = db.get("appointments") || [];
           this.selectedAppointment = appointments.find(a => a.id === id);
@@ -962,6 +1124,81 @@ export class AppointmentsView {
         deleteTrigger.style.display = "flex";
       });
       deleteFinalBtn.addEventListener("click", () => this.deleteAppointment());
+    }
+  }
+
+  setFilter(field, value) {
+    this[field] = value;
+    this.render();
+  }
+
+  renderFilterDrawer() {
+    const drawerBody = document.getElementById("filter-drawer-body");
+    if (!drawerBody) return;
+
+    const stylists = db.get("stylists") || [];
+
+    drawerBody.innerHTML = `
+      <div class="filter-drawer-content">
+        <div class="filter-drawer-group">
+          <span class="filter-drawer-label">Status</span>
+          <select id="appt-drawer-filter-status" class="form-select">
+            <option value="All" ${this.activeFilter === 'All' ? 'selected':''}>All Today</option>
+            <option value="Confirmed" ${this.activeFilter === 'Confirmed' ? 'selected':''}>Confirmed/Scheduled</option>
+            <option value="Arrived" ${this.activeFilter === 'Arrived' ? 'selected':''}>Arrived</option>
+            <option value="In Service" ${this.activeFilter === 'In Service' ? 'selected':''}>In Service</option>
+            <option value="Completed" ${this.activeFilter === 'Completed' ? 'selected':''}>Completed</option>
+            <option value="Canceled" ${this.activeFilter === 'Canceled' ? 'selected':''}>Canceled</option>
+          </select>
+        </div>
+
+        <div class="filter-drawer-group">
+          <span class="filter-drawer-label">Stylist</span>
+          <select id="appt-drawer-filter-stylist" class="form-select">
+            <option value="all" ${this.activeStylistFilter === 'all' ? 'selected':''}>All Stylists</option>
+            ${stylists.map(s => `<option value="${s.id}" ${this.activeStylistFilter === s.id ? 'selected':''}>${s.name}</option>`).join('')}
+          </select>
+        </div>
+
+        <button class="btn btn-primary" id="btn-appt-apply-drawer-filters" style="margin-top: 10px; min-height: 44px; width: 100%;">
+          Apply Filters
+        </button>
+      </div>
+    `;
+
+    this.bindDrawerEvents();
+  }
+
+  closeFilterDrawer() {
+    const overlay = document.getElementById("drawer-filter-overlay");
+    if (overlay) overlay.classList.remove("active");
+  }
+
+  bindDrawerEvents() {
+    const drawerBody = document.getElementById("filter-drawer-body");
+    if (!drawerBody) return;
+
+    const statusFilter = drawerBody.querySelector("#appt-drawer-filter-status");
+    if (statusFilter) {
+      statusFilter.addEventListener("change", (e) => {
+        this.setFilter("activeFilter", e.target.value);
+        this.closeFilterDrawer();
+      });
+    }
+
+    const stylistFilter = drawerBody.querySelector("#appt-drawer-filter-stylist");
+    if (stylistFilter) {
+      stylistFilter.addEventListener("change", (e) => {
+        this.setFilter("activeStylistFilter", e.target.value);
+        this.closeFilterDrawer();
+      });
+    }
+
+    const applyBtn = drawerBody.querySelector("#btn-appt-apply-drawer-filters");
+    if (applyBtn) {
+      applyBtn.addEventListener("click", () => {
+        this.closeFilterDrawer();
+      });
     }
   }
 }
