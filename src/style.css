@@ -2619,6 +2619,19 @@ body.light-theme .sticky-search-container {
   border-radius: var(--radius-sm);
 }
 
+/* Disable floating notifications container completely */
+.notifications-container, #global-notifications {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  position: absolute !important;
+  z-index: -9999 !important;
+  overflow: hidden !important;
+}
+
 
 
 

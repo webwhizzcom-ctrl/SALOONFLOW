@@ -214,7 +214,6 @@ state.subscribe((currentState) => {
   }
 
   // 7. Render dynamic notifications list to toast
-  renderNotifications(currentState.notifications);
   renderTopbarNotifications(currentState.notifications);
 });
 
@@ -451,12 +450,6 @@ if (globalAuthModal) {
 }
 
 
-// Render dynamic notifications toasts lists
-function renderNotifications(notifications) {
-  // Disabled the floating top-right notification stack entirely.
-  // Critical errors/alerts are handled via native popups/modals.
-  return;
-}
 
 // Sync bell badge and lists inside topbar notifications list
 function renderTopbarNotifications(notifications) {
