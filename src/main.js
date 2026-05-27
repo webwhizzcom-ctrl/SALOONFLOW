@@ -428,7 +428,7 @@ if (globalAuthModal) {
         cb(pin);
       }
     } else {
-      state.addNotification("Invalid override PIN. Access Denied.", "error");
+      alert("Invalid override PIN. Access Denied.");
       input.value = "";
       input.focus();
     }
@@ -453,31 +453,9 @@ if (globalAuthModal) {
 
 // Render dynamic notifications toasts lists
 function renderNotifications(notifications) {
-  const container = document.getElementById("global-notifications");
-  if (!container) return;
-
-  const existingIds = Array.from(container.children).map(child => child.dataset.id);
-  const newIds = notifications.map(n => n.id);
-
-  existingIds.forEach(id => {
-    if (!newIds.includes(id)) {
-      const child = container.querySelector(`[data-id="${id}"]`);
-      if (child) child.remove();
-    }
-  });
-
-  notifications.forEach(n => {
-    if (!existingIds.includes(n.id)) {
-      const toast = document.createElement("div");
-      toast.dataset.id = n.id;
-      toast.className = `notification-toast ${n.type}`;
-      toast.innerHTML = `
-        <div style="flex-grow:1; font-size:0.88rem; font-weight:500;">${n.message}</div>
-        <button style="background:none; border:none; color:#fff; cursor:pointer; font-weight:700; font-size:1.1rem;" onclick="this.parentElement.remove()">&times;</button>
-      `;
-      container.appendChild(toast);
-    }
-  });
+  // Disabled the floating top-right notification stack entirely.
+  // Critical errors/alerts are handled via native popups/modals.
+  return;
 }
 
 // Sync bell badge and lists inside topbar notifications list

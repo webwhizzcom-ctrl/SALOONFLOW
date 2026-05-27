@@ -104,7 +104,7 @@ export class ReceptionistDashboard {
       const overlay = document.getElementById("drawer-appointment-overlay");
       if (overlay) overlay.classList.add("active");
     } else {
-      this.state.addNotification("Could not open details drawer.", "error");
+      alert("Could not open details drawer.");
     }
   }
 

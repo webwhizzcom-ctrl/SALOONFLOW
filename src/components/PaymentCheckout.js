@@ -13,6 +13,10 @@ export class PaymentCheckout {
     this.finalizedInvoice = null;
     this.isFinalizing = false;
 
+    // Inline status updates
+    this.inlineStatus = null;
+    this.inlineStatusTimeout = null;
+
     // Pre-booking calendar state
     this.selectedBookStylist = "";
     this.selectedBookService = "";
@@ -24,6 +28,18 @@ export class PaymentCheckout {
       this.render();
       this.renderReceiptDrawer();
     });
+  }
+
+  setInlineStatus(message, type = "info") {
+    this.inlineStatus = { message, type };
+    this.render();
+    if (this.inlineStatusTimeout) {
+      clearTimeout(this.inlineStatusTimeout);
+    }
+    this.inlineStatusTimeout = setTimeout(() => {
+      this.inlineStatus = null;
+      this.render();
+    }, 5000);
   }
 
   init() {
@@ -41,6 +57,12 @@ export class PaymentCheckout {
     this.selectedBookService = "";
     this.selectedBookDate = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().split("T")[0];
     this.selectedBookTime = "10:00";
+
+    this.inlineStatus = null;
+    if (this.inlineStatusTimeout) {
+      clearTimeout(this.inlineStatusTimeout);
+      this.inlineStatusTimeout = null;
+    }
   }
 
   startNewBilling() {
@@ -64,7 +86,7 @@ export class PaymentCheckout {
     const remaining = Math.max(0, calcs.total - paidSoFar);
 
     if (remaining <= 0) {
-      this.state.addNotification("Checkout balance is already paid in full.", "warning");
+      this.setInlineStatus("Checkout balance is already paid in full.", "warning");
       return;
     }
 
@@ -82,23 +104,23 @@ export class PaymentCheckout {
     // Customer balance validations
     if (methodKey === "points") {
       if (!customer) {
-        this.state.addNotification("Loyalty points require a guest profile.", "error");
+        alert("Loyalty points require a guest profile.");
         return;
       }
       const pointsVal = customer.pointsBalance / 10;
       if (remaining > pointsVal) {
-        this.state.addNotification(`Insufficient points. Points value is ${formatINR(pointsVal)}.`, "error");
+        alert(`Insufficient points. Points value is ${formatINR(pointsVal)}.`);
         return;
       }
     }
 
     if (methodKey === "giftcard") {
       if (!customer) {
-        this.state.addNotification("Gift cards require a guest profile.", "error");
+        alert("Gift cards require a guest profile.");
         return;
       }
       if (remaining > customer.giftCardBalance) {
-        this.state.addNotification(`Insufficient balance. Gift card balance is ${formatINR(customer.giftCardBalance)}.`, "error");
+        alert(`Insufficient balance. Gift card balance is ${formatINR(customer.giftCardBalance)}.`);
         return;
       }
     }
@@ -110,19 +132,19 @@ export class PaymentCheckout {
       transactionID: transId
     });
 
-    this.state.addNotification(`Recorded ${formatINR(remaining)} payment via ${method}.`, "success");
+    this.setInlineStatus(`Recorded ${formatINR(remaining)} payment via ${method}.`, "success");
     this.render();
   }
 
   clearPayments() {
     this.payments = [];
-    this.state.addNotification("Payments partitions cleared.", "info");
+    this.setInlineStatus("Payments partitions cleared.", "info");
     this.render();
   }
 
   removePayment(index) {
     this.payments.splice(index, 1);
-    this.state.addNotification("Payment partition removed.", "info");
+    this.setInlineStatus("Payment partition removed.", "info");
     this.render();
   }
 
@@ -131,13 +153,13 @@ export class PaymentCheckout {
 
     // --- Validation 1: Customer Profile must be selected ---
     if (!this.state.activeCustomer) {
-      this.state.addNotification("Please select a customer profile before finalizing billing.", "error");
+      alert("Please select a customer profile before finalizing billing.");
       return;
     }
 
     // --- Validation 2: Cart must not be empty ---
     if (this.state.cart.length === 0) {
-      this.state.addNotification("Checkout failed: Cart is empty. Please add services or products.", "error");
+      alert("Checkout failed: Cart is empty. Please add services or products.");
       return;
     }
 
@@ -145,13 +167,13 @@ export class PaymentCheckout {
 
     // --- Validation 3: Valid total amount ---
     if (isNaN(calcs.total) || calcs.total <= 0) {
-      this.state.addNotification("Checkout failed: Invoice total must be a valid positive amount.", "error");
+      alert("Checkout failed: Invoice total must be a valid positive amount.");
       return;
     }
 
     // --- Validation 4: Payment partitions must be recorded ---
     if (this.payments.length === 0) {
-      this.state.addNotification("Please select and record a payment method first.", "error");
+      alert("Please select and record a payment method first.");
       return;
     }
 
@@ -159,7 +181,7 @@ export class PaymentCheckout {
     const difference = Math.abs(calcs.total - paidSoFar);
 
     if (difference > 0.02) {
-      this.state.addNotification(`Balance remaining (₹${difference.toFixed(2)}) must be ₹0 to finalize.`, "error");
+      alert(`Balance remaining (₹${difference.toFixed(2)}) must be ₹0 to finalize.`);
       return;
     }
 
@@ -193,13 +215,13 @@ export class PaymentCheckout {
           }
           
           this.renderReceiptDrawer();
-          this.state.addNotification("Billing transaction finalized and saved successfully.", "success");
+          this.setInlineStatus("Billing completed successfully.", "success");
         } else {
-          this.state.addNotification("Billing could not be completed. Please try again.", "error");
+          alert("Billing could not be completed. Please try again.");
         }
       } catch (err) {
         console.error("Checkout process crash:", err);
-        this.state.addNotification("Billing could not be completed. Please try again.", "error");
+        alert("Billing could not be completed. Please try again.");
       } finally {
         this.isFinalizing = false;
         this.render();
@@ -208,9 +230,9 @@ export class PaymentCheckout {
   }
 
   sendReceiptAction(type) {
-    this.state.addNotification(`Sharing receipt via ${type.toUpperCase()}...`, "info");
+    this.setInlineStatus(`Sharing receipt via ${type.toUpperCase()}...`, "info");
     setTimeout(() => {
-      this.state.addNotification(`Receipt successfully shared!`, "success");
+      this.setInlineStatus(`Receipt successfully shared!`, "success");
     }, 1000);
   }
 
@@ -238,9 +260,9 @@ Looking forward to seeing you again 💇
   }
 
   sendFeedbackLink() {
-    this.state.addNotification("Generating Guest Feedback link...", "info");
+    this.setInlineStatus("Generating Guest Feedback link...", "info");
     setTimeout(() => {
-      this.state.addNotification("Feedback questionnaire sent successfully.", "success");
+      this.setInlineStatus("Feedback questionnaire sent successfully.", "success");
     }, 1000);
   }
 
@@ -487,6 +509,28 @@ Looking forward to seeing you again 💇
         <div class="card-header" style="margin-bottom:12px; flex-shrink: 0;">
           <h3 class="card-title">Checkout Overview</h3>
         </div>
+
+        ${this.inlineStatus ? `
+          <div class="checkout-inline-status" style="
+            margin: 0 16px 12px 16px;
+            padding: 8px 12px;
+            border-radius: var(--radius-md);
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            animation: fadeIn 0.2s ease-in-out;
+            ${this.inlineStatus.type === 'success' ? 'background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); color: #10b981;' :
+              this.inlineStatus.type === 'error' ? 'background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444;' :
+              this.inlineStatus.type === 'warning' ? 'background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); color: #f59e0b;' :
+              'background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); color: #3b82f6;'
+            }
+          ">
+            <span style="flex-grow: 1;">${this.inlineStatus.message}</span>
+            <button style="background: none; border: none; color: currentColor; font-weight: bold; cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0 4px;" onclick="this.parentElement.remove()">&times;</button>
+          </div>
+        ` : ''}
 
         <div class="checkout-scroll-body" style="flex-grow: 1; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px;">
           <!-- Part 1: Discount & Tip adjustments -->
@@ -862,21 +906,21 @@ Looking forward to seeing you again 💇
         const totalBeforeGlobalDiscount = Math.max(0, calcs.rawSubtotal - calcs.itemDiscounts);
 
         if (isNaN(val) || val < 0) {
-          this.state.addNotification("Please enter a valid positive discount.", "error");
+          this.setInlineStatus("Please enter a valid positive discount.", "error");
           this.render();
           return;
         }
 
         if (type === "percent") {
           if (val > 100) {
-            this.state.addNotification("Percentage discount cannot exceed 100%.", "error");
+            this.setInlineStatus("Percentage discount cannot exceed 100%.", "error");
             this.render();
             return;
           }
           this.state.setGlobalDiscount(type, val);
         } else {
           if (val > totalBeforeGlobalDiscount) {
-            this.state.addNotification(`Fixed discount (₹${val}) cannot exceed subtotal (₹${totalBeforeGlobalDiscount.toFixed(2)}).`, "error");
+            this.setInlineStatus(`Fixed discount (₹${val}) cannot exceed subtotal (₹${totalBeforeGlobalDiscount.toFixed(2)}).`, "error");
             this.render();
             return;
           }
@@ -978,7 +1022,7 @@ Looking forward to seeing you again 💇
     const downloadBtn = drawerBody.querySelector("#btn-download-pdf");
     if (downloadBtn) {
       downloadBtn.addEventListener("click", () => {
-        this.state.addNotification("Opening print browser dialog. Select 'Save as PDF' to download.", "info");
+        this.setInlineStatus("Opening print browser dialog. Select 'Save as PDF' to download.", "info");
         this.printReceipt();
       });
     }
@@ -1003,7 +1047,7 @@ Looking forward to seeing you again 💇
             waBtn.style.background = "";
           }, 2500);
         }).catch(() => {
-          this.state.addNotification("Could not copy to clipboard.", "error");
+          this.setInlineStatus("Could not copy to clipboard.", "error");
         });
       });
     }

@@ -85,7 +85,7 @@ class State {
   setView(view) {
     const role = this.activeStaff ? this.activeStaff.role : "stylist";
     if (!this.validateViewPermission(view, role)) {
-      this.addNotification("Access Denied: You do not have permission to view this section.", "error");
+      alert("Access Denied: You do not have permission to view this section.");
       // Redirect to safe default for role
       if (role === "receptionist") {
         this.currentView = "appointments";
@@ -395,7 +395,7 @@ class State {
   // Save as Pending Draft
   saveDraft(internalNotes = "") {
     if (this.cart.length === 0) {
-      this.addNotification("Cannot save draft. Cart is empty.", "error");
+      alert("Cannot save draft. Cart is empty.");
       return;
     }
 
@@ -482,7 +482,7 @@ class State {
 
   processCheckout(payments, preBookAppointment = null) {
     if (this.cart.length === 0) {
-      this.addNotification("Cart is empty.", "error");
+      alert("Cart is empty.");
       return null;
     }
 
@@ -646,7 +646,7 @@ class State {
 
   cancelInvoice(invoiceId, pin, reason) {
     if (!this.verifyPIN(pin)) {
-      this.addNotification("Invalid Override Code. Verification failed.", "error");
+      alert("Invalid Override Code. Verification failed.");
       return false;
     }
 
@@ -658,7 +658,7 @@ class State {
     invoices[index].notes = (invoices[index].notes || "") + `\n[Canceled by Supervisor: ${reason}]`;
     db.set("invoices", invoices);
 
-    this.addNotification(`Invoice ${invoiceId} has been canceled and refunded.`, "warning");
+    alert(`Invoice ${invoiceId} has been canceled and refunded.`);
     this.logAudit("Invoice Cancelled", invoiceId, { reason, originalTotal: invoices[index].total }, "Manager");
     this.notify();
     return true;
@@ -666,7 +666,7 @@ class State {
 
   modifyInvoiceAfterCheckout(invoiceId, pin, updatedFields, reason) {
     if (!this.verifyPIN(pin)) {
-      this.addNotification("Invalid Override Code. Verification failed.", "error");
+      alert("Invalid Override Code. Verification failed.");
       return false;
     }
 
@@ -677,7 +677,7 @@ class State {
     invoices[index] = { ...invoices[index], ...updatedFields };
     db.set("invoices", invoices);
 
-    this.addNotification(`Invoice ${invoiceId} adjusted and re-audited.`, "success");
+    alert(`Invoice ${invoiceId} adjusted and re-audited.`);
     this.logAudit("Post-Checkout Modification", invoiceId, { reason, changes: updatedFields }, "Manager");
     this.notify();
     return true;
