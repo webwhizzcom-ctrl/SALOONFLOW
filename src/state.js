@@ -163,11 +163,12 @@ class State {
   // Cart operations
   addToCart(item) {
     const existing = this.cart.find(c => c.itemID === item.id);
-    const stylists = db.get("stylists");
-    // Default stylist to current active staff if they are a Stylist, otherwise Sarah Miller
+    const stylists = db.get("stylists") || [];
+    
+    // Default stylist to current active staff if they are a Stylist/Staff, otherwise select first stylist
     let defaultStylist = this.activeStaff;
-    if (defaultStylist && defaultStylist.role.includes("Manager")) {
-      defaultStylist = stylists.find(s => s.role.includes("Stylist")) || defaultStylist;
+    if (!defaultStylist || defaultStylist.role === "receptionist" || defaultStylist.role === "admin") {
+      defaultStylist = stylists.find(s => s.role !== "receptionist" && s.role !== "admin") || stylists[0] || { id: "Sarah-Miller", name: "Sarah Miller" };
     }
 
     if (existing) {
@@ -222,19 +223,31 @@ class State {
   setGlobalDiscount(type, value) {
     const val = parseFloat(value);
     if (isNaN(val) || val < 0) return;
-    this.globalDiscount = { type: type === "flat" ? "flat" : "percent", value: val };
+    const finalType = type === "flat" ? "flat" : "percent";
+    const finalVal = finalType === "percent" ? Math.min(100, val) : val;
+    this.globalDiscount = { type: finalType, value: finalVal };
     this.notify();
   }
 
   setTip(type, value) {
-    this.tip = { type, value };
+    const val = parseFloat(value);
+    if (isNaN(val) || val < 0) {
+      this.tip = { type: "percent", value: 18 }; // fallback default
+    } else {
+      this.tip = { type: type === "flat" ? "flat" : "percent", value: val };
+    }
     this.notify();
   }
 
   // Get invoice calculations
   getCalculations() {
-    const settings = db.get("settings");
-    const taxConfig = settings.taxConfig;
+    const settings = db.get("settings") || {};
+    const taxConfig = settings.taxConfig || {
+      serviceTaxRate: 18.0,
+      productTaxRate: 18.0,
+      membershipTaxRate: 18.0,
+      giftCardTaxRate: 0.0
+    };
 
     let subtotal = 0;
     let itemDiscounts = 0;
@@ -242,8 +255,16 @@ class State {
     let productTax = 0;
 
     this.cart.forEach(item => {
-      const lineOriginalTotal = item.price * item.qty;
-      const lineDiscount = item.discount * item.qty;
+      const price = parseFloat(item.price);
+      const qty = parseInt(item.qty);
+      const discount = parseFloat(item.discount);
+
+      const itemPrice = isNaN(price) ? 0 : price;
+      const itemQty = isNaN(qty) || qty < 0 ? 0 : qty;
+      const itemDiscount = isNaN(discount) || discount < 0 ? 0 : discount;
+
+      const lineOriginalTotal = itemPrice * itemQty;
+      const lineDiscount = Math.min(itemDiscount * itemQty, lineOriginalTotal);
       const lineSubtotal = Math.max(0, lineOriginalTotal - lineDiscount);
 
       subtotal += lineOriginalTotal;
@@ -251,13 +272,13 @@ class State {
 
       let taxRate = 0;
       if (item.type === "Service") {
-        taxRate = taxConfig.serviceTaxRate;
+        taxRate = parseFloat(taxConfig.serviceTaxRate) || 0;
       } else if (item.type === "Product") {
-        taxRate = taxConfig.productTaxRate;
+        taxRate = parseFloat(taxConfig.productTaxRate) || 0;
       } else if (item.type === "Membership") {
-        taxRate = taxConfig.membershipTaxRate;
+        taxRate = parseFloat(taxConfig.membershipTaxRate) || 0;
       } else if (item.type === "GiftCard") {
-        taxRate = taxConfig.giftCardTaxRate;
+        taxRate = parseFloat(taxConfig.giftCardTaxRate) || 0;
       }
 
       const taxAmount = lineSubtotal * (taxRate / 100);
@@ -269,23 +290,32 @@ class State {
     });
 
     const totalBeforeGlobalDiscount = Math.max(0, subtotal - itemDiscounts);
-    let globalDiscountAmount = 0;
-
-    if (this.globalDiscount.type === "percent") {
-      globalDiscountAmount = totalBeforeGlobalDiscount * (this.globalDiscount.value / 100);
-    } else {
-      globalDiscountAmount = this.globalDiscount.value;
+    let globalDiscountVal = parseFloat(this.globalDiscount.value);
+    if (isNaN(globalDiscountVal) || globalDiscountVal < 0) {
+      globalDiscountVal = 0;
     }
 
-    globalDiscountAmount = Math.min(globalDiscountAmount, totalBeforeGlobalDiscount);
-    const finalSubtotal = totalBeforeGlobalDiscount - globalDiscountAmount;
+    let globalDiscountAmount = 0;
+    if (this.globalDiscount.type === "percent") {
+      const discountPercent = Math.min(100, globalDiscountVal);
+      globalDiscountAmount = totalBeforeGlobalDiscount * (discountPercent / 100);
+    } else {
+      globalDiscountAmount = Math.min(globalDiscountVal, totalBeforeGlobalDiscount);
+    }
+
+    const finalSubtotal = Math.max(0, totalBeforeGlobalDiscount - globalDiscountAmount);
     const totalTax = serviceTax + productTax;
+
+    let tipVal = parseFloat(this.tip.value);
+    if (isNaN(tipVal) || tipVal < 0) {
+      tipVal = 0;
+    }
 
     let tipAmount = 0;
     if (this.tip.type === "percent") {
-      tipAmount = finalSubtotal * (this.tip.value / 100);
+      tipAmount = finalSubtotal * (tipVal / 100);
     } else {
-      tipAmount = this.tip.value;
+      tipAmount = tipVal;
     }
 
     const total = finalSubtotal + totalTax + tipAmount;

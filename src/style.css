@@ -2586,6 +2586,37 @@ body.light-theme .sticky-search-container {
     font-size: 0.95rem !important;
     border-radius: var(--radius-md) !important;
   }
+
+  /* Make Checkout Footer sticky at bottom of viewport inside vertical layout */
+  .checkout-footer {
+    position: sticky !important;
+    bottom: 0 !important;
+    background-color: var(--bg-card) !important;
+    border-top: 1.5px solid var(--border-color) !important;
+    padding: 16px 8px !important;
+    z-index: 95 !important;
+    box-shadow: 0 -8px 24px rgba(0,0,0,0.12) !important;
+    margin-top: 16px !important;
+  }
+
+  body.light-theme .checkout-footer {
+    box-shadow: 0 -8px 24px rgba(0,0,0,0.05) !important;
+  }
+}
+
+/* Custom Scrollbar for Checkout Body */
+.checkout-scroll-body {
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.checkout-scroll-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.checkout-scroll-body::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: var(--radius-sm);
 }
 
 
