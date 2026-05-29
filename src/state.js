@@ -1,5 +1,19 @@
 // src/state.js
 import { db } from "./db.js";
+import {
+  loadCustomersFromCloud,
+  loadAppointmentsFromCloud,
+  loadInvoicesFromCloud,
+  upsertCustomer,
+  upsertAppointment,
+  deleteAppointment,
+  saveInvoice,
+  subscribeToCustomers,
+  subscribeToAppointments,
+  subscribeToInvoices,
+  seedFromLocalStorage
+} from "./lib/supabaseDb.js";
+import { isSupabaseReady } from "./lib/supabase.js";
 
 db.init();
 
@@ -24,8 +38,81 @@ class State {
     this.isAuthenticated = false;
     this.isLocked = true;
 
+    // Cloud sync state
+    this.cloudSyncReady = false;
+    this.cloudSyncError = null;
+
     this.cleanExpiredDrafts();
     this.startDraftExpiryCron();
+
+    // Boot cloud sync in background (non-blocking)
+    this.initCloudSync();
+  }
+
+  // ─── SUPABASE CLOUD SYNC ────────────────────────────────────────────────────
+
+  async initCloudSync() {
+    if (!isSupabaseReady()) {
+      console.warn('[SalonFlow] Supabase not ready — running localStorage-only mode.');
+      return;
+    }
+
+    try {
+      // 1. One-time migration: push existing localStorage data to Supabase
+      const localCustomers    = db.get('customers') || [];
+      const localAppointments = db.get('appointments') || [];
+      const localInvoices     = db.get('invoices') || [];
+
+      // Only seed if there's local data that hasn't been synced yet
+      const hasLocalData = localCustomers.length > 0 || localInvoices.length > 0;
+      if (hasLocalData) {
+        seedFromLocalStorage(localCustomers, localAppointments, localInvoices);
+      }
+
+      // 2. Pull fresh data from Supabase into localStorage
+      const [cloudCustomers, cloudAppointments, cloudInvoices] = await Promise.all([
+        loadCustomersFromCloud(),
+        loadAppointmentsFromCloud(),
+        loadInvoicesFromCloud()
+      ]);
+
+      if (cloudCustomers && cloudCustomers.length > 0) {
+        db.set('customers', cloudCustomers, true);
+      }
+      if (cloudAppointments && cloudAppointments.length > 0) {
+        db.set('appointments', cloudAppointments, true);
+      }
+      if (cloudInvoices && cloudInvoices.length > 0) {
+        db.set('invoices', cloudInvoices, true);
+      }
+
+      this.cloudSyncReady = true;
+      this.notify();
+
+      // 3. Subscribe to realtime changes — any device change syncs all devices
+      subscribeToCustomers((freshCustomers) => {
+        db.set('customers', freshCustomers, true);
+        this.notify();
+        this.addNotification('Customer records synced from cloud.', 'info');
+      });
+
+      subscribeToAppointments((freshAppointments) => {
+        db.set('appointments', freshAppointments, true);
+        this.notify();
+        this.addNotification('Appointments updated from another device.', 'info');
+      });
+
+      subscribeToInvoices((freshInvoices) => {
+        db.set('invoices', freshInvoices, true);
+        this.notify();
+      });
+
+      console.log('[SalonFlow] Cloud sync ready ✓');
+    } catch (err) {
+      this.cloudSyncError = err.message || 'Cloud sync failed';
+      console.error('[SalonFlow] Cloud sync init error:', err);
+      // App continues working on localStorage — no crash
+    }
   }
 
   subscribe(callback) {
@@ -484,6 +571,11 @@ class State {
         this.addAppointment(preBookAppointment);
       }
 
+      // Cloud sync invoice — fire and forget, never blocks billing
+      saveInvoice(newInvoice).catch(err =>
+        console.error('[SalonFlow] saveInvoice to cloud failed:', err)
+      );
+
       this.addNotification(`Invoice ${invoiceId} finalized successfully!`, "success");
       this.logAudit("Checkout Completed", invoiceId, { total: newInvoice.total, payments }, this.activeStaff ? this.activeStaff.role : "Staff");
     }
@@ -544,11 +636,16 @@ class State {
 
     customers[custIndex] = customer;
     db.set("customers", customers);
+
+    // Sync updated customer to cloud
+    upsertCustomer(customer).catch(err =>
+      console.error('[SalonFlow] upsertCustomer (balance) failed:', err)
+    );
   }
 
   addAppointment(appt) {
     const appointments = db.get("appointments");
-    appointments.push({
+    const newAppt = {
       id: "AP-" + Date.now(),
       customerID: appt.customerID,
       customerName: appt.customerName,
@@ -558,9 +655,15 @@ class State {
       startTime: appt.startTime,
       endTime: appt.endTime,
       status: "Scheduled"
-    });
+    };
+    appointments.push(newAppt);
     db.set("appointments", appointments);
     this.addNotification("Re-booking appointment scheduled!", "success");
+
+    // Cloud sync — fire and forget, does not block UI
+    upsertAppointment(newAppt).catch(err =>
+      console.error('[SalonFlow] upsertAppointment failed:', err)
+    );
   }
 
   syncOfflineInvoices() {

@@ -1,4 +1,12 @@
 // src/db.js
+import {
+  upsertCustomer,
+  deleteCustomer,
+  upsertAppointment,
+  deleteAppointment,
+  saveInvoice
+} from "./lib/supabaseDb.js";
+
 
 const DEFAULT_STYLISTS = [
   { id: "ST-001", name: "Prashant Bhate", role: "admin", title: "Salon Director", commissionRate: 0.5, shifts: "Flexible Hours", status: "Active", pin: "0001" },
@@ -110,8 +118,59 @@ export const db = {
     return defaultValue;
   },
 
-  set(key, value) {
-    localStorage.setItem(`salonflow_${key}`, JSON.stringify(value));
+  set(key, value, skipCloudSync = false) {
+    if (!skipCloudSync && ["customers", "appointments", "invoices"].includes(key)) {
+      const oldValue = this.get(key, []);
+      localStorage.setItem(`salonflow_${key}`, JSON.stringify(value));
+      this.syncChanges(key, oldValue, value);
+    } else {
+      localStorage.setItem(`salonflow_${key}`, JSON.stringify(value));
+    }
+  },
+
+  async syncChanges(key, oldValue, newValue) {
+    try {
+      const oldArr = Array.isArray(oldValue) ? oldValue : [];
+      const newArr = Array.isArray(newValue) ? newValue : [];
+
+      const oldMap = new Map(oldArr.map(item => [item.id, item]));
+      const newMap = new Map(newArr.map(item => [item.id, item]));
+
+      if (key === "customers") {
+        for (const newItem of newArr) {
+          const oldItem = oldMap.get(newItem.id);
+          if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
+            upsertCustomer(newItem).catch(err => console.error("Cloud sync customer failed:", err));
+          }
+        }
+        for (const oldItem of oldArr) {
+          if (!newMap.has(oldItem.id)) {
+            deleteCustomer(oldItem.id).catch(err => console.error("Cloud sync delete customer failed:", err));
+          }
+        }
+      } else if (key === "appointments") {
+        for (const newItem of newArr) {
+          const oldItem = oldMap.get(newItem.id);
+          if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
+            upsertAppointment(newItem).catch(err => console.error("Cloud sync appointment failed:", err));
+          }
+        }
+        for (const oldItem of oldArr) {
+          if (!newMap.has(oldItem.id)) {
+            deleteAppointment(oldItem.id).catch(err => console.error("Cloud sync delete appointment failed:", err));
+          }
+        }
+      } else if (key === "invoices") {
+        for (const newItem of newArr) {
+          const oldItem = oldMap.get(newItem.id);
+          if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
+            saveInvoice(newItem).catch(err => console.error("Cloud sync invoice failed:", err));
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error during cloud sync diff check:", err);
+    }
   },
 
   init() {
