@@ -136,57 +136,28 @@ export class InvoiceHistory {
     const item = items[itemIndex];
     const oldPrice = item.price;
     const oldDiscount = item.discount;
-    const oldSplit = item.splitRatio;
 
     item.price = this.editItemPrice;
     item.discount = this.editItemDiscount;
-    item.splitRatio = this.editItemSplitRatio;
-    item.splitStylistID = this.editItemSplitStylist;
-
-    if (this.editItemSplitRatio < 100 && this.editItemSplitStylist) {
-      const stylists = db.get("stylists");
-      item.splitStylistName = stylists.find(s => s.id === this.editItemSplitStylist)?.name || "";
-    } else {
-      item.splitStylistID = "";
-      item.splitStylistName = "";
-      item.splitRatio = 100;
-    }
+    item.splitRatio = 100;
+    item.splitStylistID = "";
+    item.splitStylistName = "";
 
     const settings = db.get("settings");
-    const taxConfig = settings.taxConfig;
 
     let subtotal = 0;
     let totalDiscount = 0;
-    let serviceTax = 0;
-    let productTax = 0;
 
     items.forEach(it => {
       const lineOriginalTotal = it.price * it.qty;
       const lineDiscount = it.discount * it.qty;
-      const lineSubtotal = Math.max(0, lineOriginalTotal - lineDiscount);
 
       subtotal += lineOriginalTotal;
       totalDiscount += lineDiscount;
-
-      let taxRate = 0;
-      if (it.type === "Service") {
-        taxRate = taxConfig.serviceTaxRate;
-      } else if (it.type === "Product") {
-        taxRate = taxConfig.productTaxRate;
-      } else if (it.type === "Membership") {
-        taxRate = taxConfig.membershipTaxRate;
-      } else if (it.type === "GiftCard") {
-        taxRate = taxConfig.giftCardTaxRate;
-      }
-
-      const taxAmount = lineSubtotal * (taxRate / 100);
-      if (it.type === "Product") productTax += taxAmount;
-      else serviceTax += taxAmount;
     });
 
     const finalSubtotal = Math.max(0, subtotal - totalDiscount);
-    const totalTax = serviceTax + productTax;
-    const totalBill = finalSubtotal + totalTax + invoice.tip;
+    const totalBill = finalSubtotal;
 
     const payments = [...invoice.payments];
     if (payments.length > 0) {
@@ -195,7 +166,7 @@ export class InvoiceHistory {
 
     const updatedFields = {
       items,
-      tax: totalTax,
+      tax: 0,
       discount: totalDiscount,
       subtotal: finalSubtotal,
       total: totalBill,
@@ -206,7 +177,7 @@ export class InvoiceHistory {
       invoice.id,
       pin,
       updatedFields,
-      `Adjusted ${item.name}: price ${formatINR(oldPrice)}->${formatINR(item.price)}, disc ${formatINR(oldDiscount)}->${formatINR(item.discount)}, split ratio ${oldSplit}%->${item.splitRatio}%`
+      `Adjusted ${item.name}: price ${formatINR(oldPrice)}->${formatINR(item.price)}, disc ${formatINR(oldDiscount)}->${formatINR(item.discount)}`
     );
 
     if (success) {
@@ -334,9 +305,7 @@ export class InvoiceHistory {
               <th>Invoice ID</th>
               <th>Customer</th>
               <th>Total Amount</th>
-              <th>Taxes</th>
-              <th>Tips</th>
-              <th>Payment Split</th>
+              <th>Payment Mode</th>
               <th>Date & Time</th>
               <th>Status</th>
             </tr>
@@ -344,20 +313,18 @@ export class InvoiceHistory {
           <tbody>
             ${invoices.length === 0 ? `
               <tr>
-                <td colspan="8" style="text-align:center; padding:32px; color:var(--text-muted); font-weight:600; font-size:0.9rem;">No sales invoices logged in the ledger.</td>
+                <td colspan="6" style="text-align:center; padding:32px; color:var(--text-muted); font-weight:600; font-size:0.9rem;">No sales invoices logged in the ledger.</td>
               </tr>
             ` : filtered.length === 0 ? `
               <tr>
-                <td colspan="8" style="text-align:center; padding:24px; color:var(--text-muted);">No sales invoices match filters.</td>
+                <td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">No sales invoices match filters.</td>
               </tr>
             ` : filtered.map(inv => `
               <tr class="ledger-invoice-row" data-id="${inv.id}">
                 <td style="font-weight:700; color:var(--primary);">${inv.id}</td>
                 <td style="font-weight:600;">${inv.customerName}</td>
                 <td style="font-weight:700;">${formatINR(inv.total)}</td>
-                <td>${formatINR(inv.tax)}</td>
-                <td>${formatINR(inv.tip)}</td>
-                <td><span style="font-size:0.78rem; color:var(--text-secondary);">${inv.payments.map(p => p.method.split(' ')[0]).join(' + ') || 'Unpaid Draft'}</span></td>
+                <td><span style="font-size:0.78rem; color:var(--text-secondary);">${inv.payments && inv.payments[0] ? inv.payments[0].method : 'Unpaid Draft'}</span></td>
                 <td style="font-size:0.8rem; color:var(--text-muted);">${new Date(inv.createdAt).toLocaleString()}</td>
                 <td><span class="invoice-badge ${inv.status.toLowerCase()}" style="font-size:0.68rem; padding:2px 6px;">${inv.status}</span></td>
               </tr>
@@ -393,10 +360,9 @@ export class InvoiceHistory {
 
         <!-- Cart pricing overrides adjust -->
         <div>
-          <label class="form-label" style="font-size:0.7rem; margin-bottom:6px; display:block;">Line overrides & Split commission ratios</label>
+          <label class="form-label" style="font-size:0.7rem; margin-bottom:6px; display:block;">Line overrides & discounts</label>
           <div style="display:flex; flex-direction:column; gap:8px;">
             ${inv.items.map(item => {
-              const isSplit = item.splitRatio < 100;
               const isAdjusting = this.activeEditCartId === item.id;
               
               if (isAdjusting) {
@@ -415,22 +381,6 @@ export class InvoiceHistory {
                       </div>
                     </div>
 
-                    <div style="font-size:0.7rem; font-weight:600; color:var(--text-secondary); margin-top:2px;">
-                      Commission Splits: <span id="adjust-split-lbl-text">${this.editItemSplitRatio} / ${100 - this.editItemSplitRatio}</span>
-                    </div>
-
-                    <div style="display:flex; align-items:center; gap:8px;">
-                      <input type="range" id="adjust-split-slider" min="0" max="100" step="5" value="${this.editItemSplitRatio}" style="flex-grow:1; height:4px; background:none;" />
-                      <select id="adjust-split-assistant" class="form-select" style="min-height:28px; height:28px; font-size:0.75rem; padding:2px; width:110px;" ${this.editItemSplitRatio === 100 ? 'disabled' : ''}>
-                        <option value="" disabled>-- Assistant --</option>
-                        ${stylists
-                          .filter(s => s.id !== item.stylistID)
-                          .map(s => `<option value="${s.id}" ${this.editItemSplitStylist === s.id ? 'selected' : ''}>${s.name.split(' ')[0]}</option>`)
-                          .join('')
-                        }
-                      </select>
-                    </div>
-
                     <div style="display:flex; gap:6px; justify-content:flex-end; margin-top:4px;">
                       <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-adjust-form" style="min-height:26px; font-size:0.7rem;">Cancel</button>
                       <button type="submit" class="btn btn-primary btn-sm" style="min-height:26px; font-size:0.7rem;">Authorize overrides</button>
@@ -443,9 +393,6 @@ export class InvoiceHistory {
                 <div style="display:flex; justify-content:space-between; align-items:center; background-color:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:10px 12px; font-size:0.82rem;">
                   <div>
                     <div style="font-weight:600;">${item.name} (${item.qty}x)</div>
-                    <div style="font-size:0.7rem; color:var(--text-muted);">
-                      Stylist: ${item.stylistName.split(' ')[0]} ${isSplit ? `| Assistant: ${item.splitStylistName.split(' ')[0]} (${100-item.splitRatio}%)` : ''}
-                    </div>
                   </div>
                   <div style="display:flex; align-items:center; gap:8px;">
                     <span style="font-weight:700; color:var(--primary);">${formatINR(item.price * item.qty)}</span>
@@ -465,14 +412,12 @@ export class InvoiceHistory {
             <span>Subtotal</span>
             <span>${formatINR(inv.subtotal)}</span>
           </div>
-          <div class="summary-row" style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-            <span>Taxes</span>
-            <span>${formatINR(inv.tax)}</span>
-          </div>
-          <div class="summary-row" style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-            <span>Tips</span>
-            <span>${formatINR(inv.tip)}</span>
-          </div>
+          ${inv.discount > 0 ? `
+            <div class="summary-row" style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span>Discount</span>
+              <span>-${formatINR(inv.discount)}</span>
+            </div>
+          ` : ""}
           <div class="summary-row" style="display: flex; justify-content: space-between; font-weight:700; color:var(--text-primary); font-size:1rem; border-top:1px solid var(--border-color); padding-top:6px; margin-top:4px;">
             <span>Grand Total</span>
             <span>${formatINR(inv.total)}</span>
@@ -703,31 +648,12 @@ export class InvoiceHistory {
     // Form submission adjust pricing
     const adjustForm = drawerBody.querySelector("#item-line-adjust-form");
     if (adjustForm) {
-      // Dynamic slider
-      const slider = adjustForm.querySelector("#adjust-split-slider");
-      const lbl = adjustForm.querySelector("#adjust-split-lbl-text");
-      const select = adjustForm.querySelector("#adjust-split-assistant");
-
-      slider.addEventListener("input", (e) => {
-        const pRatio = parseInt(e.target.value);
-        const sRatio = 100 - pRatio;
-        if (lbl) lbl.innerText = `${pRatio} / ${sRatio}`;
-
-        if (pRatio === 100) {
-          select.disabled = true;
-          select.removeAttribute("required");
-        } else {
-          select.disabled = false;
-          select.setAttribute("required", "required");
-        }
-      });
-
       adjustForm.addEventListener("submit", (e) => {
         e.preventDefault();
         this.editItemPrice = parseFloat(adjustForm.querySelector("#adjust-price-val").value);
         this.editItemDiscount = parseFloat(adjustForm.querySelector("#adjust-discount-val").value);
-        this.editItemSplitRatio = parseInt(slider.value);
-        this.editItemSplitStylist = select.value;
+        this.editItemSplitRatio = 100;
+        this.editItemSplitStylist = "";
 
         this.submitItemEdits(e);
       });

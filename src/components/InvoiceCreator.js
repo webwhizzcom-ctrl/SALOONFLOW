@@ -62,32 +62,6 @@ export class InvoiceCreator {
     this.state.addNotification(`Added "${item.name}" to invoice.`, "info");
   }
 
-  toggleSplitExpander(cartId) {
-    if (this.expandedSplitCartId === cartId) {
-      this.expandedSplitCartId = null;
-    } else {
-      this.expandedSplitCartId = cartId;
-    }
-    this.render();
-  }
-
-  saveSplitCommission(cartId, ratio, assistantId) {
-    let splitStylistName = "";
-    if (assistantId) {
-      const stylists = db.get("stylists");
-      const stylist = stylists.find(s => s.id === assistantId);
-      splitStylistName = stylist ? stylist.name : "";
-    }
-
-    this.state.updateCartItem(cartId, {
-      splitStylistID: ratio === 100 ? "" : assistantId,
-      splitStylistName: ratio === 100 ? "" : splitStylistName,
-      splitRatio: ratio
-    });
-
-    this.state.addNotification("Item commission split updated.", "success");
-    this.expandedSplitCartId = null;
-  }
 
   repeatLastService() {
     const customer = this.state.activeCustomer;
@@ -355,35 +329,21 @@ export class InvoiceCreator {
                   <tr>
                     <th>Item Description</th>
                     <th style="width:70px; text-align:center;">Qty</th>
-                    <th style="width:85px;">Price</th>
-                    <th style="width:110px;">Stylist</th>
+                    <th style="width:100px;">Price</th>
                     <th style="width:40px;"></th>
                   </tr>
                 </thead>
                 <tbody>
                   ${cart.map(item => {
-                    const isSplit = item.splitRatio < 100;
-                    const isExpanded = this.expandedSplitCartId === item.id;
                     return `
                       <tr data-cart-id="${item.id}">
-                        <td colspan="5" style="padding:0; border-bottom:1px solid var(--border-color);">
+                        <td colspan="4" style="padding:0; border-bottom:1px solid var(--border-color);">
                           <div style="padding:10px var(--sp-1); display:flex; justify-content:space-between; align-items:center;">
                             
-                            <!-- Item name, type, and split triggers -->
+                            <!-- Item name and type -->
                             <div style="flex-grow:1; display:flex; flex-direction:column; line-height:1.2;">
                               <span style="font-weight:600; font-size:0.88rem;">${item.name}</span>
                               <span style="font-size:0.7rem; color:var(--text-muted);">${item.type}</span>
-                              
-                              <!-- Progressive split badge accordion trigger -->
-                              <div class="split-trigger-badge" data-action="toggle-split-accordion">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:10px; height:10px;">
-                                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
-                                </svg>
-                                ${isSplit 
-                                  ? `${item.stylistName.split(' ')[0]} (${item.splitRatio}%) & ${item.splitStylistName.split(' ')[0]} (${100 - item.splitRatio}%)`
-                                  : `Split Commission`
-                                }
-                              </div>
                             </div>
 
                             <!-- Qty adjustments -->
@@ -395,20 +355,13 @@ export class InvoiceCreator {
 
                             <!-- Price modifications -->
                             <div style="display:flex; flex-direction:column; gap:2px; margin-right:14px;">
-                              <input type="number" class="form-input" data-field="price" value="${item.price}" style="min-height:26px; height:26px; width:65px; padding:2px 6px; font-size:0.8rem; font-weight:600;" step="0.01" />
+                              <input type="number" class="form-input" data-field="price" value="${item.price}" style="min-height:26px; height:26px; width:75px; padding:2px 6px; font-size:0.8rem; font-weight:600;" step="0.01" />
                               ${isAllowedDiscount ? `
                                 <div style="display:flex; align-items:center; gap:2px; font-size:0.68rem; color:var(--text-secondary);">
                                   <span>Disc:</span>
-                                  <input type="number" class="form-input" data-field="discount" value="${item.discount}" style="min-height:20px; height:20px; width:40px; padding:2px 4px; font-size:0.68rem;" />
+                                  <input type="number" class="form-input" data-field="discount" value="${item.discount}" style="min-height:20px; height:20px; width:50px; padding:2px 4px; font-size:0.68rem;" />
                                 </div>
                               ` : ""}
-                            </div>
-
-                            <!-- Stylist Select lists -->
-                            <div style="margin-right:8px;">
-                              <select class="cart-stylist-select" data-field="stylist" style="min-height:26px; height:26px; padding:2px 4px; font-size:0.78rem;">
-                                ${stylists.map(s => `<option value="${s.id}" ${item.stylistID === s.id ? 'selected' : ''}>${s.name.split(' ')[0]}</option>`).join('')}
-                              </select>
                             </div>
 
                             <!-- Delete line item btn -->
@@ -421,33 +374,6 @@ export class InvoiceCreator {
                             </div>
 
                           </div>
-
-                          <!-- Progressive split inline accordion panel -->
-                          <div class="split-expander-panel ${isExpanded ? 'active' : ''}">
-                            <div style="display:flex; justify-content:space-between; font-size:0.72rem; font-weight:600; color:var(--text-secondary);">
-                              <span>Primary: ${item.stylistName} (${item.splitRatio}%)</span>
-                              <span id="range-lbl-text-${item.id}">Split Ratio: ${item.splitRatio} / ${100 - item.splitRatio}</span>
-                            </div>
-                            
-                            <div style="display:flex; align-items:center; gap:12px;">
-                              <input type="range" class="split-range-slider" data-cart-id="${item.id}" min="0" max="100" step="5" value="${item.splitRatio}" style="flex-grow:1; height:6px; background:none;" />
-                              
-                              <select class="form-select" data-field="split-assistant" style="min-height:30px; height:30px; font-size:0.75rem; width:130px; padding:4px 8px;" ${item.splitRatio === 100 ? 'disabled' : ''}>
-                                <option value="" disabled ${!item.splitStylistID ? 'selected' : ''}>-- Select Assistant --</option>
-                                ${stylists
-                                  .filter(s => s.id !== item.stylistID)
-                                  .map(s => `<option value="${s.id}" ${item.splitStylistID === s.id ? 'selected' : ''}>${s.name}</option>`)
-                                  .join('')
-                                }
-                              </select>
-                            </div>
-
-                            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:4px;">
-                              <button class="btn btn-secondary btn-sm" data-action="reset-splits" style="min-height:28px; padding:2px 10px; font-size:0.72rem;">Clear Split</button>
-                              <button class="btn btn-primary btn-sm" data-action="save-splits" style="min-height:28px; padding:2px 10px; font-size:0.72rem;">Apply Split</button>
-                            </div>
-                          </div>
-
                         </td>
                       </tr>
                     `;
@@ -699,86 +625,6 @@ export class InvoiceCreator {
       });
     }
 
-    // Stylist assign select changes
-    this.container.querySelectorAll('select[data-field="stylist"]').forEach(select => {
-      select.addEventListener("change", (e) => {
-        const tr = e.target.closest("tr");
-        const id = tr.dataset.cartId;
-        const stylistId = e.target.value;
-        const stylist = db.get("stylists").find(s => s.id === stylistId);
-        
-        this.state.updateCartItem(id, {
-          stylistID: stylistId,
-          stylistName: stylist ? stylist.name : "Unassigned"
-        });
-      });
-    });
-
-    // Toggle split accordion expansion
-    this.container.querySelectorAll('[data-action="toggle-split-accordion"]').forEach(badge => {
-      badge.addEventListener("click", (e) => {
-        const tr = e.target.closest("tr");
-        const id = tr.dataset.cartId;
-        this.toggleSplitExpander(id);
-      });
-    });
-
-    // Range slider range updates dynamically inside accordion
-    this.container.querySelectorAll(".split-range-slider").forEach(slider => {
-      const id = slider.dataset.cartId;
-      const lbl = this.container.querySelector(`#range-lbl-text-${id}`);
-      const select = slider.nextElementSibling; // select field next to slider
-
-      slider.addEventListener("input", (e) => {
-        const pRatio = parseInt(e.target.value);
-        const sRatio = 100 - pRatio;
-        if (lbl) lbl.innerText = `Split Ratio: ${pRatio} / ${sRatio}`;
-
-        if (pRatio === 100) {
-          select.disabled = true;
-          select.removeAttribute("required");
-        } else {
-          select.disabled = false;
-          select.setAttribute("required", "required");
-        }
-      });
-    });
-
-    // Clear Splits triggers
-    this.container.querySelectorAll('[data-action="reset-splits"]').forEach(btn => {
-      btn.addEventListener("click", (e) => {
-        const tr = e.target.closest("tr");
-        const id = tr.dataset.cartId;
-        this.state.updateCartItem(id, {
-          splitRatio: 100,
-          splitStylistID: "",
-          splitStylistName: ""
-        });
-        this.state.addNotification("Splits cleared.", "info");
-        this.expandedSplitCartId = null;
-      });
-    });
-
-    // Save Splits triggers
-    this.container.querySelectorAll('[data-action="save-splits"]').forEach(btn => {
-      btn.addEventListener("click", (e) => {
-        const tr = e.target.closest("tr");
-        const id = tr.dataset.cartId;
-        
-        const slider = tr.querySelector(".split-range-slider");
-        const select = tr.querySelector('select[data-field="split-assistant"]');
-        
-        const ratio = parseInt(slider.value);
-        const assistantId = select.value;
-
-        if (ratio < 100 && !assistantId) {
-          alert("Please select a secondary assistant stylist.");
-          return;
-        }
-
-        this.saveSplitCommission(id, ratio, assistantId);
-      });
-    });
 
     // Clear cart button
     const clearCartBtn = this.container.querySelector("#btn-clear-cart");

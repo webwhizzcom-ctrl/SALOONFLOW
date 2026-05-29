@@ -131,9 +131,9 @@ export function exportEODRevenueReport(date = getTodayDateStr()) {
     });
 
     const stylistNames = inv.items.map(item => {
-      let sName = item.stylistName.split(' ')[0];
+      let sName = item.stylistName ? item.stylistName.split(' ')[0] : "Staff";
       if (item.splitStylistName) {
-        sName += ` & ${item.splitStylistName.split(' ')[0]} (${100 - item.splitRatio}%)`;
+        sName += ` & ${item.splitStylistName.split(' ')[0]} (${100 - (item.splitRatio || 100)}%)`;
       }
       return sName;
     }).join(", ");
@@ -254,15 +254,16 @@ export function exportStaffCommissionReport(date = getTodayDateStr()) {
   invoices.forEach(inv => {
     inv.items.forEach(item => {
       const itemRev = (item.price - (item.discount || 0)) * item.qty;
-      const primaryShare = itemRev * (item.splitRatio / 100);
+      const ratio = item.splitRatio !== undefined ? item.splitRatio : 100;
+      const primaryShare = itemRev * (ratio / 100);
       
-      if (stylistStats[item.stylistID]) {
+      if (item.stylistID && stylistStats[item.stylistID]) {
         stylistStats[item.stylistID].serviceSales += primaryShare;
         stylistStats[item.stylistID].commissionEarned += primaryShare * stylistStats[item.stylistID].commissionRate;
       }
 
       if (item.splitStylistID && stylistStats[item.splitStylistID]) {
-        const secondaryShare = itemRev * ((100 - item.splitRatio) / 100);
+        const secondaryShare = itemRev * ((100 - ratio) / 100);
         stylistStats[item.splitStylistID].serviceSales += secondaryShare;
         stylistStats[item.splitStylistID].commissionEarned += secondaryShare * stylistStats[item.splitStylistID].commissionRate;
       }
@@ -271,7 +272,7 @@ export function exportStaffCommissionReport(date = getTodayDateStr()) {
     // Award tips to the primary stylist of the first service item (approximate tip allocation)
     if (inv.tip > 0 && inv.items.length > 0) {
       const primaryStylist = inv.items[0].stylistID;
-      if (stylistStats[primaryStylist]) {
+      if (primaryStylist && stylistStats[primaryStylist]) {
         stylistStats[primaryStylist].tipsReceived += inv.tip;
       }
     }

@@ -7,9 +7,8 @@ export class PaymentCheckout {
     this.container = container;
     this.state = state;
 
-    // Checkout partitions state
-    this.payments = []; // { method, amount, transactionID }
-    this.activePaymentMethod = "pos";
+    // Checkout state
+    this.selectedPaymentMethod = "Cash"; // 'Cash', 'UPI', 'Card'
     this.finalizedInvoice = null;
     this.isFinalizing = false;
 
@@ -48,8 +47,7 @@ export class PaymentCheckout {
   }
 
   resetCheckoutState(keepReceipt = false) {
-    this.payments = [];
-    this.activePaymentMethod = "pos";
+    this.selectedPaymentMethod = "Cash";
     if (!keepReceipt) {
       this.finalizedInvoice = null;
     }
@@ -76,78 +74,6 @@ export class PaymentCheckout {
     if (drawer) drawer.classList.remove("active");
   }
 
-  handleTipChange(type, value) {
-    this.state.setTip(type, value);
-  }
-
-  recordImmediatePayment(methodKey) {
-    const calcs = this.state.getCalculations();
-    const paidSoFar = this.payments.reduce((sum, p) => sum + p.amount, 0);
-    const remaining = Math.max(0, calcs.total - paidSoFar);
-
-    if (remaining <= 0) {
-      this.setInlineStatus("Checkout balance is already paid in full.", "warning");
-      return;
-    }
-
-    const methodNames = {
-      pos: "POS Terminal",
-      cash: "Cash / Manual Check",
-      online: "Online Stored Card",
-      points: "Points Redemption",
-      giftcard: "Gift Card Balance"
-    };
-
-    const method = methodNames[methodKey];
-    const customer = this.state.activeCustomer;
-
-    // Customer balance validations
-    if (methodKey === "points") {
-      if (!customer) {
-        alert("Loyalty points require a guest profile.");
-        return;
-      }
-      const pointsVal = customer.pointsBalance / 10;
-      if (remaining > pointsVal) {
-        alert(`Insufficient points. Points value is ${formatINR(pointsVal)}.`);
-        return;
-      }
-    }
-
-    if (methodKey === "giftcard") {
-      if (!customer) {
-        alert("Gift cards require a guest profile.");
-        return;
-      }
-      if (remaining > customer.giftCardBalance) {
-        alert(`Insufficient balance. Gift card balance is ${formatINR(customer.giftCardBalance)}.`);
-        return;
-      }
-    }
-
-    const transId = "TXN-" + Math.floor(100000 + Math.random() * 900000);
-    this.payments.push({
-      method,
-      amount: remaining,
-      transactionID: transId
-    });
-
-    this.setInlineStatus(`Recorded ${formatINR(remaining)} payment via ${method}.`, "success");
-    this.render();
-  }
-
-  clearPayments() {
-    this.payments = [];
-    this.setInlineStatus("Payments partitions cleared.", "info");
-    this.render();
-  }
-
-  removePayment(index) {
-    this.payments.splice(index, 1);
-    this.setInlineStatus("Payment partition removed.", "info");
-    this.render();
-  }
-
   submitCheckout() {
     if (this.isFinalizing) return;
 
@@ -171,20 +97,6 @@ export class PaymentCheckout {
       return;
     }
 
-    // --- Validation 4: Payment partitions must be recorded ---
-    if (this.payments.length === 0) {
-      alert("Please select and record a payment method first.");
-      return;
-    }
-
-    const paidSoFar = this.payments.reduce((sum, p) => sum + p.amount, 0);
-    const difference = Math.abs(calcs.total - paidSoFar);
-
-    if (difference > 0.02) {
-      alert(`Balance remaining (₹${difference.toFixed(2)}) must be ₹0 to finalize.`);
-      return;
-    }
-
     // Engage lock state immediately to prevent double-clicks
     this.isFinalizing = true;
     this.render();
@@ -192,9 +104,16 @@ export class PaymentCheckout {
     // Capture remarks note
     const notes = this.state.currentInvoiceNotes || "";
 
+    const transId = "TXN-" + Math.floor(100000 + Math.random() * 900000);
+    const payments = [{
+      method: this.selectedPaymentMethod,
+      amount: calcs.total,
+      transactionID: transId
+    }];
+
     setTimeout(() => {
       try {
-        const receipt = this.state.processCheckout(this.payments, null);
+        const receipt = this.state.processCheckout(payments, null);
         if (receipt) {
           receipt.notes = notes;
           
@@ -239,19 +158,20 @@ export class PaymentCheckout {
   generateWhatsAppMessage(inv) {
     const date = new Date(inv.createdAt);
     const dateStr = date.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
-    const services = inv.items.filter(i => i.type === 'Service').map(i => i.name).join(', ');
+    const services = inv.items.map(i => `${i.name} (x${i.qty})`).join(', ');
     const total = inv.total;
     const name = inv.customerName || 'Valued Guest';
-    const salonName = "Asmita's Beauty Salon & Academy | PMU Clinic";
+    const salonName = "Asmita's Beauty Salon & Academy";
 
     return `Hello ${name} ✨
 
 Thank you for visiting ${salonName} today!
 
 Your appointment details:
-${services ? `• Service: ${services}` : ''}
+• Items: ${services}
 • Date: ${dateStr}
-• Amount Paid: ₹${total.toFixed(2)}
+• Total Amount: ₹${total.toFixed(2)}
+• Paid via: ${inv.payments && inv.payments[0] ? inv.payments[0].method : 'Cash'}
 
 We hope you had a wonderful experience with us.
 Looking forward to seeing you again 💇
@@ -285,33 +205,24 @@ Looking forward to seeing you again 💇
       headerPhone: "9876543210",
       footerText: "Thank you for visiting! We look forward to seeing you again."
     };
-    
-    const taxGroupName = settings.taxConfig?.taxGroupName || "GST";
-    const taxNumber = settings.taxConfig?.taxNumber || "";
 
     const itemsHtml = inv.items.map(item => {
-      const isSplit = item.splitRatio < 100;
-      const staffInfo = item.stylistName.split(' ')[0] + (isSplit ? ` & ${item.splitStylistName.split(' ')[0]}` : '');
       return `
         <div class="receipt-item">
           <div class="receipt-row receipt-row-bold">
             <span>${item.name} (${item.qty}x)</span>
             <span>₹${(item.price * item.qty).toFixed(2)}</span>
           </div>
-          <div class="receipt-item-details">
-            Stylist: ${staffInfo}
-            ${item.discount > 0 ? ` | Disc: -₹${(item.discount * item.qty).toFixed(2)}` : ''}
-          </div>
+          ${item.discount > 0 ? `
+            <div class="receipt-item-details">
+              Disc: -₹${(item.discount * item.qty).toFixed(2)}
+            </div>
+          ` : ''}
         </div>
       `;
     }).join('');
 
-    const paymentsHtml = inv.payments.map(p => `
-      <div class="receipt-row">
-        <span>* ${p.method}</span>
-        <span>₹${p.amount.toFixed(2)}</span>
-      </div>
-    `).join('');
+    const paymentMode = inv.payments && inv.payments.length > 0 ? inv.payments[0].method : "Cash";
 
     const printWindow = window.open("", "_blank");
     printWindow.document.write(`
@@ -351,7 +262,7 @@ Looking forward to seeing you again 💇
               font-size: 10px;
               margin: 0 0 2px 0;
             }
-            .receipt-phone, .receipt-tax {
+            .receipt-phone {
               font-size: 9.5px;
               margin: 0;
             }
@@ -389,7 +300,6 @@ Looking forward to seeing you again 💇
             <div class="receipt-title">${template.headerTitle}</div>
             <div class="receipt-subtitle">${template.headerSubtitle}</div>
             <div class="receipt-phone">Phone: ${template.headerPhone}</div>
-            ${taxNumber ? `<div class="receipt-tax">Tax Reg: ${taxNumber}</div>` : ''}
           </div>
           
           <div class="receipt-divider"></div>
@@ -425,16 +335,6 @@ Looking forward to seeing you again 💇
               <span>-₹${inv.discount.toFixed(2)}</span>
             </div>
           ` : ""}
-          <div class="receipt-row">
-            <span>${taxGroupName}</span>
-            <span>₹${inv.tax.toFixed(2)}</span>
-          </div>
-          ${inv.tip > 0 ? `
-            <div class="receipt-row">
-              <span>Tips</span>
-              <span>₹${inv.tip.toFixed(2)}</span>
-            </div>
-          ` : ""}
           <div class="receipt-row receipt-row-bold" style="font-size: 12px; margin-top: 4px;">
             <span>GRAND TOTAL</span>
             <span>₹${inv.total.toFixed(2)}</span>
@@ -443,8 +343,10 @@ Looking forward to seeing you again 💇
           <div class="receipt-divider"></div>
           
           <div style="margin-bottom: 8px;">
-            <div style="font-weight: bold; margin-bottom: 2px;">PAYMENT METHOD:</div>
-            ${paymentsHtml}
+            <div class="receipt-row">
+              <span style="font-weight: bold;">PAYMENT MODE:</span>
+              <span style="font-weight: bold;">${paymentMode.toUpperCase()}</span>
+            </div>
           </div>
           
           ${inv.notes ? `
@@ -497,12 +399,7 @@ Looking forward to seeing you again 💇
     if (this.state.currentView !== "invoice-creator") return;
 
     const calcs = this.state.getCalculations();
-    const isAllowedDiscount = this.state.activeStaff && (this.state.activeStaff.role === 'admin' || this.state.activeStaff.role === 'receptionist');
     const customer = this.state.activeCustomer;
-    const settings = db.get("settings");
-
-    const paidSoFar = this.payments.reduce((sum, p) => sum + p.amount, 0);
-    const remainingToPay = Math.max(0, calcs.total - paidSoFar);
 
     this.container.innerHTML = `
       <div class="checkout-summary-panel" style="height: 100%; display: flex; flex-direction: column; overflow: hidden;">
@@ -532,52 +429,17 @@ Looking forward to seeing you again 💇
           </div>
         ` : ''}
 
-        <div class="checkout-scroll-body" style="flex-grow: 1; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px;">
-          <!-- Part 1: Discount & Tip adjustments -->
+        <div class="checkout-scroll-body" style="flex-grow: 1; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 16px; margin-bottom: 12px;">
+          
+          <!-- Discount adjustments -->
           <div class="checkout-adjustments-card" style="margin-bottom: 0;">
-            <!-- Global Discount inputs -->
-            ${isAllowedDiscount ? `
-              <div class="form-group" style="margin-bottom:10px; display:flex; flex-direction:column; gap:6px; border-bottom:1px solid var(--border-color); padding-bottom:10px;">
-                <label class="form-label" style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; color:var(--text-secondary);">Discount Type</label>
-                <div style="display: flex; gap: 16px; margin-bottom: 4px;">
-                  <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; cursor: pointer; color: var(--text-primary); font-weight: 500;">
-                    <input type="radio" name="discount-type" value="percent" ${this.state.globalDiscount.type === 'percent' ? 'checked' : ''} style="accent-color:var(--primary);" /> Percentage (%)
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; cursor: pointer; color: var(--text-primary); font-weight: 500;">
-                    <input type="radio" name="discount-type" value="flat" ${this.state.globalDiscount.type === 'flat' ? 'checked' : ''} style="accent-color:var(--primary);" /> Fixed Amount (₹)
-                  </label>
-                </div>
-
-                <div class="form-group" style="margin-bottom:0;">
-                  <label class="form-label" style="font-size:0.7rem; color:var(--text-muted); font-weight:600;">
-                    ${this.state.globalDiscount.type === 'percent' ? 'Discount Percentage (%)' : 'Discount Amount (₹)'}
-                  </label>
-                  <input type="number" id="global-discount-val" class="form-input" value="${this.state.globalDiscount.value}" min="0" ${this.state.globalDiscount.type === 'percent' ? 'max="100"' : ''} style="width: 100%; min-height:36px; height:36px; padding:6px 10px; font-size:0.85rem; font-weight:600;" placeholder="0" />
-                </div>
-              </div>
-            ` : ""}
-
-            <!-- Tipping selectors -->
             <div class="form-group" style="margin-bottom:0;">
-              <label class="form-label" style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; color:var(--text-secondary); margin-bottom:6px; display:block;">Add Tips</label>
-              <div class="tip-preset-row" style="margin-bottom:6px; gap:4px;">
-                <button class="tip-preset-btn ${this.state.tip.type === 'percent' && this.state.tip.value === 15 ? 'active' : ''}" data-tip="15" style="padding:4px; font-size:0.75rem;">15%</button>
-                <button class="tip-preset-btn ${this.state.tip.type === 'percent' && this.state.tip.value === 18 ? 'active' : ''}" data-tip="18" style="padding:4px; font-size:0.75rem;">18%</button>
-                <button class="tip-preset-btn ${this.state.tip.type === 'percent' && this.state.tip.value === 20 ? 'active' : ''}" data-tip="20" style="padding:4px; font-size:0.75rem;">20%</button>
-                <button class="tip-preset-btn ${this.state.tip.type === 'percent' && this.state.tip.value === 25 ? 'active' : ''}" data-tip="25" style="padding:4px; font-size:0.75rem;">25%</button>
-                <button class="tip-preset-btn ${this.state.tip.type === 'flat' ? 'active' : ''}" id="btn-custom-tip" style="padding:4px; font-size:0.75rem;">Custom</button>
-              </div>
-              
-              ${this.state.tip.type === 'flat' ? `
-                <div style="display:flex; align-items:center; gap:6px;">
-                  <span style="font-size:0.72rem; color:var(--text-secondary);">Tip Amount (₹):</span>
-                  <input type="number" class="form-input" id="custom-tip-val" value="${this.state.tip.value}" style="width: 80px; min-height: 28px; height:28px; padding: 2px 6px; font-size:0.78rem;" />
-                </div>
-              ` : ""}
+              <label class="form-label" style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; color:var(--text-secondary); margin-bottom:6px; display:block;">Discount Amount (₹)</label>
+              <input type="number" id="global-discount-val" class="form-input" value="${this.state.globalDiscount.value}" min="0" style="width: 100%; min-height:36px; height:36px; padding:6px 10px; font-size:0.85rem; font-weight:600;" placeholder="0" />
             </div>
           </div>
 
-          <!-- Part 2: Totals Calculation Card -->
+          <!-- Totals Calculation Card -->
           <div class="checkout-totals-card" style="margin-bottom: 0;">
             <div class="checkout-total-row">
               <span>Subtotal</span>
@@ -589,103 +451,44 @@ Looking forward to seeing you again 💇
                 <span>-${formatINR(calcs.totalDiscount)}</span>
               </div>
             ` : ""}
-            <div class="checkout-total-row">
-              <span>Taxes (${settings.taxConfig.taxGroupName})</span>
-              <span>${formatINR(calcs.totalTax)}</span>
-            </div>
-            <div class="checkout-total-row">
-              <span>Tips Added</span>
-              <span>${formatINR(calcs.tipAmount)}</span>
-            </div>
             <div class="checkout-total-row grand-total">
               <span>GRAND TOTAL</span>
               <span class="checkout-grand-total-val">${formatINR(calcs.total)}</span>
             </div>
           </div>
 
-          <!-- Part 3: Split Payments builder ledger & Quick Pay grid -->
-          <div class="checkout-payments-card" style="margin-bottom: 0;">
-            <label class="form-label" style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; color:var(--text-secondary); margin-bottom:4px; display:block;">Split Payment Partitions</label>
-            ${this.payments.length === 0 ? `
-              <div style="padding:10px; border:1px dashed var(--border-color); border-radius:var(--radius-md); text-align:center; color:var(--text-muted); font-size:0.78rem; background-color:rgba(0,0,0,0.05); margin-bottom:4px;">
-                No payment partitions recorded.
-              </div>
-            ` : `
-              <div style="display:flex; flex-direction:column; gap:4px; background-color:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:8px; margin-bottom:4px;">
-                ${this.payments.map((p, idx) => `
-                  <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.78rem; border-bottom:1px solid rgba(255,255,255,0.03); padding-bottom:4px; margin-bottom:2px;">
-                    <div>
-                      <span style="font-weight:600; color:var(--text-primary);">${p.method}</span>
-                      <span style="font-size:0.65rem; color:var(--text-muted);">(${p.transactionID.split('-')[1]})</span>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:6px;">
-                      <span style="font-weight:700; color:var(--text-primary);">${formatINR(p.amount)}</span>
-                      <button data-action="remove-split" data-idx="${idx}" style="background:none; border:none; color:var(--danger); cursor:pointer; font-weight:700; font-size:1.1rem; padding:2px 6px;">&times;</button>
-                    </div>
-                  </div>
-                `).join('')}
-                <button class="btn btn-secondary btn-sm" id="btn-clear-splits-payment" style="width:100%; min-height:28px; height:28px; padding:2px; font-size:0.72rem; margin-top:4px; font-weight:600;">Clear partitions</button>
-              </div>
-            `}
-
-            <label class="form-label" style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; color:var(--text-secondary); margin-top:4px; margin-bottom:4px; display:block;">Quick Pay (Remaining: ${formatINR(remainingToPay)})</label>
-            <div class="checkout-quick-pay-grid">
-              <button class="quick-pay-btn" data-action="quick-pay" data-method="pos">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" style="width:14px;height:14px;color:var(--primary);margin-bottom:2px;">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
-                </svg>
-                Card
-              </button>
-              <button class="quick-pay-btn" data-action="quick-pay" data-method="cash">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" style="width:14px;height:14px;color:var(--success);margin-bottom:2px;">
+          <!-- Payment Mode selector -->
+          <div class="checkout-payments-card" style="margin-bottom: 0; display:flex; flex-direction:column; gap:8px;">
+            <label class="form-label" style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; color:var(--text-secondary); margin-bottom:4px; display:block;">Select Payment Method</label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+              <button class="quick-pay-btn" data-method-select="Cash" style="min-height: 52px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; font-weight:600; border: 1.5px solid ${this.selectedPaymentMethod === 'Cash' ? 'var(--primary)' : 'var(--border-color)'}; border-radius: var(--radius-md); background: ${this.selectedPaymentMethod === 'Cash' ? 'rgba(99, 102, 241, 0.1)' : 'var(--bg-card)'}; color: ${this.selectedPaymentMethod === 'Cash' ? 'var(--primary)' : 'var(--text-primary)'}; cursor:pointer;">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" style="width:16px;height:16px;color:var(--success);">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5h16.5M4.5 19.5h15M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 Cash
               </button>
-              <button class="quick-pay-btn" data-action="quick-pay" data-method="online" ${!customer ? 'disabled':''}>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" style="width:14px;height:14px;color:var(--info);margin-bottom:2px;">
+              <button class="quick-pay-btn" data-method-select="UPI" style="min-height: 52px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; font-weight:600; border: 1.5px solid ${this.selectedPaymentMethod === 'UPI' ? 'var(--primary)' : 'var(--border-color)'}; border-radius: var(--radius-md); background: ${this.selectedPaymentMethod === 'UPI' ? 'rgba(99, 102, 241, 0.1)' : 'var(--bg-card)'}; color: ${this.selectedPaymentMethod === 'UPI' ? 'var(--primary)' : 'var(--text-primary)'}; cursor:pointer;">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" style="width:16px;height:16px;color:var(--info);">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9s2.015-9 4.5-9yM3 9h18M3 15h18" />
                 </svg>
-                Stored
+                UPI
               </button>
-              <button class="quick-pay-btn" data-action="quick-pay" data-method="points" ${!customer ? 'disabled':''}>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" style="width:14px;height:14px;color:var(--warning);margin-bottom:2px;">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499c-.19-.384-.782-.384-.97 0l-2.07 4.148-4.62.667c-.43.06-.602.579-.29.879l3.39 3.3-1.01 4.542c-.09.43.37.76.75.54l4.13-2.12 4.13 2.12c.38.22.84-.11.75-.54l-1.01-4.542 3.39-3.3c.31-.3.14-.81-.29-.879l-4.62-.667-2.07-4.148z" />
+              <button class="quick-pay-btn" data-method-select="Card" style="min-height: 52px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; font-weight:600; border: 1.5px solid ${this.selectedPaymentMethod === 'Card' ? 'var(--primary)' : 'var(--border-color)'}; border-radius: var(--radius-md); background: ${this.selectedPaymentMethod === 'Card' ? 'rgba(99, 102, 241, 0.1)' : 'var(--bg-card)'}; color: ${this.selectedPaymentMethod === 'Card' ? 'var(--primary)' : 'var(--text-primary)'}; cursor:pointer;">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" style="width:16px;height:16px;color:var(--primary);">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
                 </svg>
-                Points
-              </button>
-              <button class="quick-pay-btn" data-action="quick-pay" data-method="giftcard" ${!customer ? 'disabled':''}>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" style="width:14px;height:14px;color:#a855f7;margin-bottom:2px;">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 109.375 7.5H12m0-2.625A2.625 2.625 0 1114.625 7.5H12m0 0V21m-8.625-9.75h17.25c.621 0 1.125-.504 1.125-1.125V8.625c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
-                </svg>
-                GiftCard
+                Card
               </button>
             </div>
           </div>
+
         </div>
 
-        <!-- Part 4: Bottom Finalize Actions (Sticky/Locked at bottom of card) -->
+        <!-- Sticky actions -->
         <div class="checkout-footer" style="flex-shrink: 0; margin-top: auto; border-top: 1px solid var(--border-color); padding-top: 12px; background-color: var(--bg-card); z-index: 10;">
-          ${remainingToPay > 0.02 ? `
-            <div class="checkout-balance-due-row" style="margin-bottom: 8px;">
-              <span>Balance Due</span>
-              <span class="checkout-balance-val">${formatINR(remainingToPay)}</span>
-            </div>
-          ` : `
-            <div class="checkout-balance-due-row paid-full" style="margin-bottom: 8px;">
-              <span style="display:flex; align-items:center; gap:6px;">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3.2" stroke="currentColor" style="width:14px;height:14px;">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-                PAID IN FULL
-              </span>
-              <span class="checkout-balance-val">₹0</span>
-            </div>
-          `}
-
           <div style="display:flex; gap:12px;">
             <button class="checkout-btn-secondary" id="btn-save-draft-checkout" style="flex:1;" ${this.isFinalizing ? 'disabled' : ''}>Save Draft</button>
-            <button class="checkout-btn-primary" id="btn-finalize-checkout" style="flex:1.8;" ${this.isFinalizing || remainingToPay > 0.02 || this.state.cart.length === 0 ? 'disabled' : ''}>
+            <button class="checkout-btn-primary" id="btn-finalize-checkout" style="flex:1.8;" ${this.isFinalizing || this.state.cart.length === 0 ? 'disabled' : ''}>
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:16px;height:16px;">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0110 21a3.745 3.745 0 01-3.296-1.043A3.745 3.745 0 015.661 16.66 3.746 3.746 0 013 13c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.745 3.745 0 013.296-1.043A3.745 3.745 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.745 3.745 0 013.296 1.043 3.745 3.745 0 011.043 3.296A3.745 3.745 0 0121 12z" />
               </svg>
@@ -705,12 +508,13 @@ Looking forward to seeing you again 💇
 
     const inv = this.finalizedInvoice;
     const formattedDate = new Date(inv.createdAt).toLocaleString();
-    const isWalkin = !inv.customerID;
     
     const settings = db.get("settings");
     const template = settings.templateConfig;
     const services = db.get("services");
     const stylists = db.get("stylists");
+
+    const paymentMode = inv.payments && inv.payments.length > 0 ? inv.payments[0].method : "Cash";
 
     drawerBody.innerHTML = `
       <div style="display:flex; flex-direction:column; gap:20px; height: 100%; overflow-y: auto; padding-right: 4px;">
@@ -731,11 +535,9 @@ Looking forward to seeing you again 💇
         <!-- Thermal Ticket Visualizer -->
         <div class="receipt-paper" id="receipt-thermal-paper" style="font-family: 'Courier New', Courier, monospace; width:100%; border:1px solid #ccc; padding:16px;">
           <div class="receipt-header" style="text-align: center; margin-bottom: 8px;">
-            <img src="/logo.png" alt="Asmita's Logo" style="height: 60px; width: 60px; border-radius: 50%; object-fit: cover; margin-bottom: 6px; border: 1px solid #ccc; display: block; margin-left: auto; margin-right: auto;" />
             <h3 class="receipt-title" style="font-size: 1.05rem; font-weight: bold; margin: 0;">${template.headerTitle}</h3>
             <p style="font-size:0.75rem; margin-top:2px; margin-bottom: 0;">${template.headerSubtitle}</p>
             <p style="font-size:0.75rem; margin: 0;">Phone: ${template.headerPhone}</p>
-            <p style="font-size:0.75rem; margin: 0;">Tax Reg: ${settings.taxConfig.taxNumber}</p>
           </div>
 
           <div class="receipt-divider"></div>
@@ -757,10 +559,11 @@ Looking forward to seeing you again 💇
                   <span>${item.name} (${item.qty}x)</span>
                   <span>${formatINR(item.price * item.qty)}</span>
                 </div>
-                <div class="receipt-row" style="font-size:0.7rem; color:#555; padding-left:8px;">
-                  <span>Stylist: ${item.stylistName.split(' ')[0]} ${item.splitRatio < 100 ? `& ${item.splitStylistName.split(' ')[0]}` : ''}</span>
-                  ${item.discount > 0 ? `<span>Disc: -${formatINR(item.discount * item.qty)}</span>` : ""}
-                </div>
+                ${item.discount > 0 ? `
+                  <div class="receipt-row" style="font-size:0.7rem; color:#555; padding-left:8px;">
+                    <span>Disc: -${formatINR(item.discount * item.qty)}</span>
+                  </div>
+                ` : ""}
               </div>
             `).join('')}
           </div>
@@ -777,32 +580,19 @@ Looking forward to seeing you again 💇
               <span>-${formatINR(inv.discount)}</span>
             </div>
           ` : ""}
-          <div class="receipt-row" style="font-size:0.78rem;">
-            <span>${settings.taxConfig.taxGroupName}</span>
-            <span>${formatINR(inv.tax)}</span>
-          </div>
-          ${inv.tip > 0 ? `
-            <div class="receipt-row" style="font-size:0.78rem;">
-              <span>Tip Amount</span>
-              <span>${formatINR(inv.tip)}</span>
-            </div>
-          ` : ""}
-          <div class="receipt-row" style="font-weight:700; font-size:0.95rem; margin-top:4px;">
+          <div class="receipt-row style="font-weight:700; font-size:0.95rem; margin-top:4px;">
             <span>GRAND TOTAL</span>
             <span>${formatINR(inv.total)}</span>
           </div>
 
           <div class="receipt-divider"></div>
 
-          <!-- Payment splits -->
+          <!-- Payment mode info -->
           <div style="font-size:0.75rem;">
-            <p style="font-weight:bold; margin-bottom:2px;">PAYMENT PARTITIONS:</p>
-            ${inv.payments.map(p => `
-              <div class="receipt-row">
-                <span>* ${p.method}</span>
-                <span>${formatINR(p.amount)}</span>
-              </div>
-            `).join('')}
+            <div class="receipt-row">
+              <span style="font-weight:bold;">PAYMENT MODE:</span>
+              <span style="font-weight:bold;">${paymentMode.toUpperCase()}</span>
+            </div>
           </div>
 
           ${inv.notes ? `
@@ -886,24 +676,17 @@ Looking forward to seeing you again 💇
 
       </div>
     `;
-
     this.bindReceiptEvents();
   }
 
   bindEvents() {
-    // Global Discount Val changes
-    const isAllowedDiscount = this.state.activeStaff && (this.state.activeStaff.role === 'admin' || this.state.activeStaff.role === 'receptionist');
-    if (isAllowedDiscount) {
-      const gVal = this.container.querySelector("#global-discount-val");
-      const gTypes = this.container.querySelectorAll('input[name="discount-type"]');
-      
-      const updateDiscount = () => {
-        if (!gVal) return;
+    // Discount input changes
+    const gVal = this.container.querySelector("#global-discount-val");
+    if (gVal) {
+      gVal.addEventListener("change", () => {
         const val = parseFloat(gVal.value);
-        const typeActive = this.container.querySelector('input[name="discount-type"]:checked');
-        const type = typeActive ? typeActive.value : "percent";
         const calcs = this.state.getCalculations();
-        const totalBeforeGlobalDiscount = Math.max(0, calcs.rawSubtotal - calcs.itemDiscounts);
+        const totalBeforeDiscount = Math.max(0, calcs.rawSubtotal - calcs.itemDiscounts);
 
         if (isNaN(val) || val < 0) {
           this.setInlineStatus("Please enter a valid positive discount.", "error");
@@ -911,95 +694,29 @@ Looking forward to seeing you again 💇
           return;
         }
 
-        if (type === "percent") {
-          if (val > 100) {
-            this.setInlineStatus("Percentage discount cannot exceed 100%.", "error");
-            this.render();
-            return;
-          }
-          this.state.setGlobalDiscount(type, val);
-        } else {
-          if (val > totalBeforeGlobalDiscount) {
-            this.setInlineStatus(`Fixed discount (₹${val}) cannot exceed subtotal (₹${totalBeforeGlobalDiscount.toFixed(2)}).`, "error");
-            this.render();
-            return;
-          }
-          this.state.setGlobalDiscount(type, val);
+        if (val > totalBeforeDiscount) {
+          this.setInlineStatus(`Discount (₹${val}) cannot exceed subtotal (₹${totalBeforeDiscount.toFixed(2)}).`, "error");
+          this.render();
+          return;
         }
-      };
 
-      if (gVal) {
-        gVal.addEventListener("change", updateDiscount);
-      }
-      gTypes.forEach(radio => {
-        radio.addEventListener("change", (e) => {
-          const type = e.target.value;
-          const currentVal = parseFloat(gVal ? gVal.value : 0) || 0;
-          const calcs = this.state.getCalculations();
-          const totalBeforeGlobalDiscount = Math.max(0, calcs.rawSubtotal - calcs.itemDiscounts);
-          
-          if (type === "percent") {
-            const val = Math.min(100, currentVal);
-            this.state.setGlobalDiscount(type, val);
-          } else {
-            const val = Math.min(totalBeforeGlobalDiscount, currentVal);
-            this.state.setGlobalDiscount(type, val);
-          }
-        });
+        this.state.setGlobalDiscount("flat", val);
       });
     }
 
-    // Tips preset changes
-    const tipBtns = this.container.querySelectorAll(".tip-preset-btn");
-    tipBtns.forEach(btn => {
+    // Payment method selector click listeners
+    const methodBtns = this.container.querySelectorAll("[data-method-select]");
+    methodBtns.forEach(btn => {
       btn.addEventListener("click", () => {
-        const val = parseInt(btn.dataset.tip);
-        this.handleTipChange("percent", val);
+        this.selectedPaymentMethod = btn.dataset.methodSelect;
+        this.render();
       });
     });
-
-    const customTipBtn = this.container.querySelector("#btn-custom-tip");
-    if (customTipBtn) {
-      customTipBtn.addEventListener("click", () => {
-        this.handleTipChange("flat", 10.00);
-      });
-    }
-
-    const customTipValInput = this.container.querySelector("#custom-tip-val");
-    if (customTipValInput) {
-      customTipValInput.addEventListener("change", (e) => {
-        const val = parseFloat(e.target.value);
-        if (!isNaN(val) && val >= 0) this.handleTipChange("flat", val);
-      });
-    }
-
-    // Quick pay click triggers
-    const payBtns = this.container.querySelectorAll('[data-action="quick-pay"]');
-    payBtns.forEach(btn => {
-      btn.addEventListener("click", () => {
-        const methodKey = btn.dataset.method;
-        this.recordImmediatePayment(methodKey);
-      });
-    });
-
-    // Remove partition split pay
-    this.container.querySelectorAll('[data-action="remove-split"]').forEach(btn => {
-      btn.addEventListener("click", (e) => {
-        const idx = parseInt(btn.dataset.idx);
-        this.removePayment(idx);
-      });
-    });
-
-    const clearSplitsBtn = this.container.querySelector("#btn-clear-splits-payment");
-    if (clearSplitsBtn) {
-      clearSplitsBtn.addEventListener("click", () => this.clearPayments());
-    }
 
     // Save Draft click
     const saveDraftBtn = this.container.querySelector("#btn-save-draft-checkout");
     if (saveDraftBtn) {
       saveDraftBtn.addEventListener("click", () => {
-        // Enforce notes
         const notes = this.state.currentInvoiceNotes || "";
         this.state.saveDraft(notes);
       });

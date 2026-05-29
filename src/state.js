@@ -9,8 +9,8 @@ class State {
     this.offlineMode = false;
     this.activeCustomer = null;
     this.cart = []; // Line items
-    this.globalDiscount = { type: "percent", value: 0 };
-    this.tip = { type: "percent", value: 18 };
+    this.globalDiscount = { type: "flat", value: 0 };
+    this.tip = { type: "flat", value: 0 };
     this.offlineQueue = [];
     this.notifications = [];
     
@@ -215,8 +215,8 @@ class State {
 
   clearCart() {
     this.cart = [];
-    this.globalDiscount = { type: "percent", value: 0 };
-    this.tip = { type: "percent", value: 18 };
+    this.globalDiscount = { type: "flat", value: 0 };
+    this.tip = { type: "flat", value: 0 };
     this.notify();
   }
 
@@ -241,18 +241,8 @@ class State {
 
   // Get invoice calculations
   getCalculations() {
-    const settings = db.get("settings") || {};
-    const taxConfig = settings.taxConfig || {
-      serviceTaxRate: 18.0,
-      productTaxRate: 18.0,
-      membershipTaxRate: 18.0,
-      giftCardTaxRate: 0.0
-    };
-
     let subtotal = 0;
     let itemDiscounts = 0;
-    let serviceTax = 0;
-    let productTax = 0;
 
     this.cart.forEach(item => {
       const price = parseFloat(item.price);
@@ -265,28 +255,9 @@ class State {
 
       const lineOriginalTotal = itemPrice * itemQty;
       const lineDiscount = Math.min(itemDiscount * itemQty, lineOriginalTotal);
-      const lineSubtotal = Math.max(0, lineOriginalTotal - lineDiscount);
 
       subtotal += lineOriginalTotal;
       itemDiscounts += lineDiscount;
-
-      let taxRate = 0;
-      if (item.type === "Service") {
-        taxRate = parseFloat(taxConfig.serviceTaxRate) || 0;
-      } else if (item.type === "Product") {
-        taxRate = parseFloat(taxConfig.productTaxRate) || 0;
-      } else if (item.type === "Membership") {
-        taxRate = parseFloat(taxConfig.membershipTaxRate) || 0;
-      } else if (item.type === "GiftCard") {
-        taxRate = parseFloat(taxConfig.giftCardTaxRate) || 0;
-      }
-
-      const taxAmount = lineSubtotal * (taxRate / 100);
-      if (item.type === "Product") {
-        productTax += taxAmount;
-      } else {
-        serviceTax += taxAmount;
-      }
     });
 
     const totalBeforeGlobalDiscount = Math.max(0, subtotal - itemDiscounts);
@@ -304,21 +275,6 @@ class State {
     }
 
     const finalSubtotal = Math.max(0, totalBeforeGlobalDiscount - globalDiscountAmount);
-    const totalTax = serviceTax + productTax;
-
-    let tipVal = parseFloat(this.tip.value);
-    if (isNaN(tipVal) || tipVal < 0) {
-      tipVal = 0;
-    }
-
-    let tipAmount = 0;
-    if (this.tip.type === "percent") {
-      tipAmount = finalSubtotal * (tipVal / 100);
-    } else {
-      tipAmount = tipVal;
-    }
-
-    const total = finalSubtotal + totalTax + tipAmount;
 
     return {
       rawSubtotal: subtotal,
@@ -326,11 +282,11 @@ class State {
       globalDiscountAmount,
       totalDiscount: itemDiscounts + globalDiscountAmount,
       subtotalAfterDiscount: finalSubtotal,
-      serviceTax,
-      productTax,
-      totalTax,
-      tipAmount,
-      total
+      serviceTax: 0,
+      productTax: 0,
+      totalTax: 0,
+      tipAmount: 0,
+      total: finalSubtotal
     };
   }
 
