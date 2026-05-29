@@ -88,16 +88,22 @@ body {
   color: var(--text-primary);
   min-height: 100vh;
   display: flex;
+  /* NOTE: overflow:hidden removed — it blocked tablet scrolling and prevented
+     the Finalize Billing footer from being reachable on touch devices */
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.3s ease, color 0.3s ease;
+  -webkit-tap-highlight-color: rgba(99,102,241,0.12);
+  touch-action: manipulation;
 }
 
 button, input, select, textarea {
   font-family: inherit;
   color: inherit;
   outline: none;
+  /* Ensure touch events fire immediately, no 300ms delay */
+  touch-action: manipulation;
 }
 
 svg {
@@ -582,20 +588,52 @@ svg {
   }
 }
 
-@media (max-width: 720px) {
+/* === TABLET LAYOUT FIX (768px - 1024px) ===
+   Stack POS columns vertically on tablets so the
+   Checkout panel is reachable and not clipped */
+@media (max-width: 1024px) and (min-width: 501px) {
   .pos-workspace-layout {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto;
     overflow-y: auto;
     height: 100%;
+    gap: 12px;
+    /* Ensure the container itself scrolls on tablet */
+    -webkit-overflow-scrolling: touch;
   }
   .pos-center-col {
     grid-row: 1;
     height: auto;
+    overflow: visible;
+  }
+  .pos-right-col {
+    grid-row: 2;
+    /* Do NOT use height:100% here — let it size naturally so footer stays visible */
+    height: auto;
+    overflow: visible;
+    /* Push checkout panel to always be fully visible */
+    padding-bottom: 80px;
+  }
+}
+
+@media (max-width: 500px) {
+  .pos-workspace-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    overflow-y: auto;
+    height: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+  .pos-center-col {
+    grid-row: 1;
+    height: auto;
+    overflow: visible;
   }
   .pos-right-col {
     grid-row: 2;
     height: auto;
+    overflow: visible;
+    padding-bottom: 80px;
   }
 }
 
@@ -604,6 +642,19 @@ svg {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* On tablet — columns must not clip their children */
+@media (max-width: 1024px) {
+  .pos-center-col, .pos-right-col {
+    height: auto;
+    overflow: visible;
+  }
+  /* Content area must scroll on tablet */
+  .content-area {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* Card components styling */
@@ -950,10 +1001,16 @@ body.light-theme .checkout-totals-card {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  /* TABLET FIX: Always keep finalize button on-screen */
+  position: sticky;
+  bottom: 0;
+  z-index: 9999;
+  background-color: var(--bg-card);
+  padding-bottom: 12px;
 }
 
 .checkout-btn-primary {
-  min-height: 48px;
+  min-height: 56px;
   font-size: 0.95rem;
   font-weight: 700;
   border-radius: var(--radius-md);
@@ -967,6 +1024,14 @@ body.light-theme .checkout-totals-card {
   gap: 8px;
   transition: var(--transition-smooth);
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+  /* Ensure tap targets are large enough for fingers */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  /* Force button above all layers */
+  position: relative;
+  z-index: 1;
+  /* Prevent any parent from blocking pointer events */
+  pointer-events: auto !important;
 }
 .checkout-btn-primary:hover:not(:disabled) {
   filter: brightness(1.1);
@@ -980,10 +1045,11 @@ body.light-theme .checkout-totals-card {
   opacity: 0.4;
   cursor: not-allowed;
   box-shadow: none;
+  pointer-events: none;
 }
 
 .checkout-btn-secondary {
-  min-height: 48px;
+  min-height: 56px;
   font-size: 0.95rem;
   font-weight: 600;
   border-radius: var(--radius-md);
@@ -996,6 +1062,11 @@ body.light-theme .checkout-totals-card {
   align-items: center;
   gap: 8px;
   transition: var(--transition-smooth);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+  z-index: 1;
+  pointer-events: auto !important;
 }
 .checkout-btn-secondary:hover:not(:disabled) {
   background-color: var(--bg-card-hover);
@@ -1151,13 +1222,16 @@ body.light-theme .checkout-totals-card {
   backdrop-filter: var(--glass-blur);
   z-index: 1000;
   opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  /* CRITICAL: inactive drawers must NEVER intercept touch events */
+  pointer-events: none !important;
+  visibility: hidden;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.3s;
 }
 
 .drawer-overlay.active {
   opacity: 1;
-  pointer-events: all;
+  pointer-events: all !important;
+  visibility: visible;
 }
 
 .drawer-panel {
@@ -1276,13 +1350,16 @@ body.light-theme .checkout-totals-card {
   align-items: center;
   justify-content: center;
   opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  /* CRITICAL: inactive modals must NEVER intercept touch/click events */
+  pointer-events: none !important;
+  visibility: hidden;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s;
 }
 
 .modal-overlay.active {
   opacity: 1;
-  pointer-events: all;
+  pointer-events: all !important;
+  visibility: visible;
 }
 
 .modal-box {
@@ -2577,31 +2654,159 @@ body.light-theme .sticky-search-container {
 }
 
 /* Mobile/Tablet Drawer Styles */
+/* ==================================================
+   TABLET-FIRST RESPONSIVE OVERRIDES (≤1024px)
+   Targeting iPad, Android tablets, touch screens
+   ================================================== */
 @media (max-width: 1024px) {
-  /* Increase all touch targets in filter inputs for receptionist fingers */
+  /* Increase all touch targets for receptionist fingers */
   .filter-drawer-content .form-select,
   .filter-drawer-content .form-input,
   .filter-drawer-content .btn {
-    min-height: 46px !important;
+    min-height: 48px !important;
     font-size: 0.95rem !important;
     border-radius: var(--radius-md) !important;
   }
 
-  /* Make Checkout Footer sticky at bottom of viewport inside vertical layout */
+  /* Make ALL buttons in billing flow easier to tap */
+  .btn, button {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(99,102,241,0.12);
+  }
+
+  /* Checkout summary panel — allow natural height, don't clip */
+  .checkout-summary-panel {
+    height: auto !important;
+    min-height: unset;
+    overflow: visible !important;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* CRITICAL: Finalize Billing footer — sticky, always visible, never clipped */
   .checkout-footer {
     position: sticky !important;
     bottom: 0 !important;
     background-color: var(--bg-card) !important;
     border-top: 1.5px solid var(--border-color) !important;
-    padding: 16px 8px !important;
-    z-index: 95 !important;
-    box-shadow: 0 -8px 24px rgba(0,0,0,0.12) !important;
-    margin-top: 16px !important;
+    padding: 16px 12px !important;
+    z-index: 9999 !important;
+    box-shadow: 0 -8px 24px rgba(0,0,0,0.18) !important;
+    margin-top: 8px !important;
+    /* Prevent this from being blocked by any sibling/parent */
+    pointer-events: auto !important;
   }
 
   body.light-theme .checkout-footer {
-    box-shadow: 0 -8px 24px rgba(0,0,0,0.05) !important;
+    box-shadow: 0 -6px 20px rgba(0,0,0,0.07) !important;
   }
+
+  /* Finalize Billing button — extra large tap target on tablet */
+  #btn-finalize-checkout {
+    min-height: 60px !important;
+    font-size: 1rem !important;
+    touch-action: manipulation !important;
+    pointer-events: auto !important;
+    position: relative !important;
+    z-index: 9999 !important;
+  }
+
+  /* Payment method buttons — larger tap targets */
+  .quick-pay-btn {
+    min-height: 60px !important;
+    touch-action: manipulation !important;
+  }
+
+  /* Prevent horizontal overflow causing scroll issues */
+  .pos-workspace-layout,
+  .pos-center-col,
+  .pos-right-col,
+  .checkout-summary-panel,
+  .card {
+    max-width: 100% !important;
+    overflow-x: hidden;
+  }
+
+  /* Catalog grid — 2 columns on tablet for easier tapping */
+  .catalog-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+    max-height: 300px !important;
+  }
+
+  /* Catalog item cards — easier to tap */
+  .catalog-item-card {
+    min-height: 80px !important;
+    touch-action: manipulation;
+  }
+
+  /* Top bar — hide search on small tablets to save space */
+  .topbar-search {
+    width: 200px;
+  }
+  .topbar-search:focus-within {
+    width: 240px;
+  }
+
+  /* Ensure qty buttons are big enough to tap */
+  .qty-btn {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 1rem !important;
+    touch-action: manipulation;
+  }
+}
+
+/* Extra small tablets / large phones */
+@media (max-width: 600px) {
+  .topbar-search {
+    display: none;
+  }
+  .top-bar {
+    justify-content: flex-end;
+    padding: 0 12px;
+  }
+  .topbar-right {
+    gap: 8px;
+  }
+  .connectivity-status .status-lbl {
+    display: none;
+  }
+  .staff-info {
+    display: none;
+  }
+  #btn-finalize-checkout {
+    min-height: 64px !important;
+    font-size: 1.05rem !important;
+  }
+}
+
+/* Custom Scrollbar for Checkout Body */
+.checkout-scroll-body {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.checkout-scroll-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.checkout-scroll-body::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+/* Disable floating notifications container completely */
+.notifications-container, #global-notifications {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  position: absolute !important;
+  z-index: -9999 !important;
+  overflow: hidden !important;
 }
 
 /* Custom Scrollbar for Checkout Body */

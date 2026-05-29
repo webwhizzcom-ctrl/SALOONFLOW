@@ -484,15 +484,26 @@ Looking forward to seeing you again 💇
 
         </div>
 
-        <!-- Sticky actions -->
-        <div class="checkout-footer" style="flex-shrink: 0; margin-top: auto; border-top: 1px solid var(--border-color); padding-top: 12px; background-color: var(--bg-card); z-index: 10;">
+        <!-- Sticky actions — always visible, z-index enforced for tablet -->
+        <div class="checkout-footer" style="
+          flex-shrink: 0;
+          margin-top: auto;
+          border-top: 1px solid var(--border-color);
+          padding-top: 12px;
+          padding-bottom: 12px;
+          background-color: var(--bg-card);
+          position: sticky;
+          bottom: 0;
+          z-index: 9999;
+          pointer-events: auto;
+        ">
           <div style="display:flex; gap:12px;">
-            <button class="checkout-btn-secondary" id="btn-save-draft-checkout" style="flex:1;" ${this.isFinalizing ? 'disabled' : ''}>Save Draft</button>
-            <button class="checkout-btn-primary" id="btn-finalize-checkout" style="flex:1.8;" ${this.isFinalizing || this.state.cart.length === 0 ? 'disabled' : ''}>
+            <button class="checkout-btn-secondary" id="btn-save-draft-checkout" style="flex:1; touch-action:manipulation;" ${this.isFinalizing ? 'disabled' : ''}>Save Draft</button>
+            <button class="checkout-btn-primary" id="btn-finalize-checkout" style="flex:1.8; touch-action:manipulation; position:relative; z-index:9999; pointer-events:auto;" ${this.isFinalizing || this.state.cart.length === 0 ? 'disabled' : ''}>
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:16px;height:16px;">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0110 21a3.745 3.745 0 01-3.296-1.043A3.745 3.745 0 015.661 16.66 3.746 3.746 0 013 13c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.745 3.745 0 013.296-1.043A3.745 3.745 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.745 3.745 0 013.296 1.043 3.745 3.745 0 011.043 3.296A3.745 3.745 0 0121 12z" />
               </svg>
-              <span>${this.isFinalizing ? 'Processing Billing...' : 'Finalize Billing'}</span>
+              <span>${this.isFinalizing ? 'Processing...' : 'Finalize Billing'}</span>
             </button>
           </div>
         </div>
@@ -580,7 +591,7 @@ Looking forward to seeing you again 💇
               <span>-${formatINR(inv.discount)}</span>
             </div>
           ` : ""}
-          <div class="receipt-row style="font-weight:700; font-size:0.95rem; margin-top:4px;">
+          <div class="receipt-row" style="font-weight:700; font-size:0.95rem; margin-top:4px;">
             <span>GRAND TOTAL</span>
             <span>${formatINR(inv.total)}</span>
           </div>
@@ -722,10 +733,22 @@ Looking forward to seeing you again 💇
       });
     }
 
-    // Finalize checkout click
+    // Finalize checkout click — bind both click AND touchstart for tablet reliability
     const finalizeBtn = this.container.querySelector("#btn-finalize-checkout");
     if (finalizeBtn) {
-      finalizeBtn.addEventListener("click", () => this.submitCheckout());
+      // Use touchend to avoid 300ms delay on iOS/Android tablets
+      finalizeBtn.addEventListener("touchend", (e) => {
+        e.preventDefault(); // Prevent the subsequent click from double-firing
+        if (!finalizeBtn.disabled) {
+          this.submitCheckout();
+        }
+      }, { passive: false });
+      // Keep click for desktop/mouse
+      finalizeBtn.addEventListener("click", () => {
+        if (!finalizeBtn.disabled) {
+          this.submitCheckout();
+        }
+      });
     }
   }
 
